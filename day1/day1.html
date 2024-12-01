@@ -1,0 +1,92 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            function read_table(text) {
+                const fileinput = document.getElementById("in1").value;
+                const lines = fileinput.split("\n");
+                let table = [];
+                lines.forEach(element => {
+                    let line = [];
+                    element.split(" ").forEach(number => {
+                        if (number.length > 0) {
+                            line.push(Number(number));
+                        }
+                    });
+                    table.push(line);
+                });
+                return table;
+            }
+
+            function transpose(table) {
+                let table2 = [];
+                // make a 2d array of the correct size
+                table[0].forEach(_ => {
+                    table2.push([]);
+                });
+                // now fill them using indices
+                table.forEach((subarr, i) => {
+                    subarr.forEach((value, j) => {
+                        table2[j].push(value);
+                    });
+                });
+                return table2;
+            }
+
+            function do1() {
+                const table = transpose(read_table(document.getElementById("in1").value));
+                table[0].sort();
+                table[1].sort();
+                let accum = 0;
+                for (let index = 0; index < table[0].length; index++) {
+                    const a = table[0][index];
+                    const b = table[1][index];
+                    accum += Math.abs(a - b);
+                }
+                document.getElementById("out1").innerHTML = accum.toString();
+            }
+
+            function do2() {
+                const table = transpose(read_table(document.getElementById("in1").value));
+                table[0].sort();
+                table[1].sort();
+                let accum = 0;
+                let index2 = 0;
+                for (let index = 0; index < table[0].length; index++) {
+                    let equal = 0;
+                    const elem = table[0][index];
+                    while (elem > table[1][index2]) {
+                        index2++;
+                    }
+                    while (elem == table[1][index2]) {
+                        index2++;
+                        equal++;
+                    }
+                    let copies = 1;
+                    while (index + 1 < table[0].length && elem == table[0][index+1]) {
+                        index++;
+                        copies++;
+                    }
+                    console.log(elem, equal);
+                    accum += elem * equal * copies;
+                }
+                document.getElementById("out2").innerHTML = accum.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2>Day 1</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3>Part 1</h3>
+        <button type="button" onclick="do1()">
+            Go
+        </button>
+        <p id="out1">...Output here...</p>
+        <h3>Part 2</h3>
+        <button type="button" onclick="do2()">
+            Go
+        </button>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
