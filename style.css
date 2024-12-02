@@ -4,11 +4,46 @@ body {
     font-family: "Source Code Pro", monospace;
     font-weight: 300;
     font-size: 14pt;
-    min-width: 60em;
+    padding: 10px;
 }
 
 div {
     margin-bottom: 10px;
+}
+
+textarea {
+    background-color: black;
+    color: lightgreen;
+    border: solid green 2px;
+    width: 100%;
+    max-width: 100%;
+}
+
+button {
+    background-color: lightyellow;
+    color: black;
+    border: solid yellow 2px;
+    border-radius: 8px;
+    font-family: "Source Code Pro", monospace;
+    font-weight: 300;
+    font-size: 14pt;
+}
+
+.play {
+    background-color: transparent;
+    color: white;
+    border: solid red 2px;
+    border-radius: 50%;
+    padding: 0px 12px 4px 12px;
+    font-family: "Arial";
+    font-size: 30px;
+    content: "&#9656;";
+}
+
+.play:hover {
+    background-color: transparent;
+    color: white;
+    border: solid white 2px;
 }
 
 a {

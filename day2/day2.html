@@ -1,0 +1,87 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            function is_safe(line, skip) {
+                let last = null;
+                let increasing = null;
+                let unsafe_numbers = 0;
+                let index = 0;
+                for (const num of line.split(" ")) {
+                    if (num.length == 0) {
+                        continue;
+                    }
+                    if (index++ == skip) {
+                        continue;
+                    }
+                    const num_parsed = Number(num);
+                    if (last != null) {
+                        const diff = Math.abs(last - num_parsed);
+                        if (!(diff >= 1 && diff <= 3)) {
+                            unsafe_numbers++;
+                            continue;
+                        }
+                        // at this point (num_parsed != last) == true
+                        if (increasing == null) {
+                            increasing = num_parsed > last;
+                        }
+                        else if (increasing != (num_parsed > last)) {
+                            unsafe_numbers++;
+                            continue;
+                        }
+                    }
+                    last = num_parsed;
+                }
+                if (last == null) {
+                    return 10; // anything higher than 1 will do here
+                }
+                return unsafe_numbers;
+            }
+            function do1() {
+                const fileinput = document.getElementById("in1").value;
+                const lines = fileinput.split("\n");
+                let safe = 0;
+                lines.forEach(line => {
+                    if (is_safe(line, -1) == 0) {
+                        safe++;
+                    }
+                });
+                document.getElementById("out1").innerHTML = safe.toString();
+            }
+
+            function do2() {
+                const fileinput = document.getElementById("in1").value;
+                const lines = fileinput.split("\n");
+                let safe = 0;
+                lines.forEach(line => {
+                    // smart, using the counter:
+                    if (is_safe(line, 0) == 0 || is_safe(line, 1) == 0 || is_safe(line, 2) == 0 || is_safe(line, -1) <= 1) {
+                        safe++;
+                    }
+                    // naive for lines shorter than 20 numbers:
+                    /*for (let i = -1; i++ < 20;) {
+                        if (is_safe(line, i) == 0) {
+                            safe++;
+                            break;
+                        }
+                    }*/
+                });
+                document.getElementById("out2").innerHTML = safe.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2>Day 2</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>

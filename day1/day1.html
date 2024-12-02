@@ -3,8 +3,7 @@
         <link rel="stylesheet" href="../style.css">
         <script>
             function read_table(text) {
-                const fileinput = document.getElementById("in1").value;
-                const lines = fileinput.split("\n");
+                const lines = text.split("\n");
                 let table = [];
                 lines.forEach(element => {
                     let line = [];
