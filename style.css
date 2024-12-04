@@ -29,6 +29,17 @@ button {
     font-size: 14pt;
 }
 
+.back {
+    color: white;
+    text-decoration: none;
+    margin-right: 15px;
+    padding-bottom: 5px;
+    vertical-align: middle;
+    font-size: 18px;
+    border: none;
+    font-family: "Arial";
+}
+
 .play {
     background-color: transparent;
     color: white;
@@ -37,7 +48,6 @@ button {
     padding: 0px 12px 4px 12px;
     font-family: "Arial";
     font-size: 30px;
-    content: "&#9656;";
 }
 
 .play:hover {

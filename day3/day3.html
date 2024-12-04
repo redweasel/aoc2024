@@ -1,0 +1,47 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            function do1() {
+                const fileinput = document.getElementById("in1").value;
+                let regexpr = /mul\((\d+),(\d+)\)/g;
+                let accum = 0;
+                fileinput.replace(regexpr, (match, a, b) => { accum += Number(a) * Number(b); return ""; })
+                document.getElementById("out1").innerHTML = accum.toString();
+            }
+
+            function do2() {
+                const fileinput = document.getElementById("in1").value;
+                let regexpr = /(mul\((\d+),(\d+)\)|do\(\)|don't\(\))/g;
+                let accum = 0;
+                let enabled = true;
+                fileinput.replace(regexpr, (match, _, a, b) => {
+                    if (match == "do()") {
+                        enabled = true;
+                    }
+                    else if (match == "don't()") {
+                        enabled = false;
+                    }
+                    else if (enabled) {
+                        accum += Number(a) * Number(b); return "";
+                    }
+                })
+                document.getElementById("out2").innerHTML = accum.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 3</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
