@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            function do1() {
+                const fileinput = document.getElementById("in1").value;
+                // My 1. idea for a simple (slow) solution is to search only for XMAS and SAMX in horizontal alignment.
+                // then transpose the input to get the verticals and adjust that a little for the diagonals.
+                // My 2. idea is to use my new tool the regexp to do the job by first determining the length
+                // of a line and then creating the patterns for everything dynamically.
+                let count = 0;
+                // can't do both in one, as they may overlap
+                fileinput.replace(/XMAS/g, () => { count += 1; });
+                fileinput.replace(/SAMX/g, () => { count += 1; });
+                let len = fileinput.split("\n")[0].length;
+                let oneline = fileinput.replace(/\n/g, " ");
+                // verticals
+                oneline.replace(new RegExp("X(?=.{" + len + "}M.{" + len + "}A.{" + len + "}S)", "g"), () => { count += 1; });
+                oneline.replace(new RegExp("S(?=.{" + len + "}A.{" + len + "}M.{" + len + "}X)", "g"), () => { count += 1; });
+                // diagonals
+                oneline.replace(new RegExp("X(?=(.{" + (len+1) + "}M.{" + (len+1) + "}A.{" + (len+1) + "}S))", "g"), (_, match) => { if ((match.match(/\s/g) || []).length == 3) { count += 1; } });
+                oneline.replace(new RegExp("X(?=(.{" + (len-1) + "}M.{" + (len-1) + "}A.{" + (len-1) + "}S))", "g"), (_, match) => { if ((match.match(/\s/g) || []).length == 3) { count += 1; } });
+                oneline.replace(new RegExp("S(?=(.{" + (len+1) + "}A.{" + (len+1) + "}M.{" + (len+1) + "}X))", "g"), (_, match) => { if ((match.match(/\s/g) || []).length == 3) { count += 1; } });
+                oneline.replace(new RegExp("S(?=(.{" + (len-1) + "}A.{" + (len-1) + "}M.{" + (len-1) + "}X))", "g"), (_, match) => { if ((match.match(/\s/g) || []).length == 3) { count += 1; } });
+                document.getElementById("out1").innerHTML = count.toString();
+            }
+
+            function do2() {
+                const fileinput = document.getElementById("in1").value;
+                // My 1. idea for a simple (slow) solution is to search only for XMAS and SAMX in horizontal alignment.
+                // then transpose the input to get the verticals and adjust that a little for the diagonals.
+                // My 2. idea is to use my new tool the regexp to do the job by first determining the length
+                // of a line and then creating the patterns for everything dynamically.
+                let count = 0;
+                // there are 4 ways to make tha X-MAS
+                let len = fileinput.split("\n")[0].length;
+                let oneline = fileinput.replace(/\n/g, " ");
+                oneline.replace(new RegExp("M(?=\\SM(.{" + (len-1) + "}A.{" + (len-1) + "})S\\SS)", "g"), (_, match) => { if ((match.match(/\s/g) || []).length == 2) { count += 1; } });
+                oneline.replace(new RegExp("M(?=\\SS(.{" + (len-1) + "}A.{" + (len-1) + "})M\\SS)", "g"), (_, match) => { if ((match.match(/\s/g) || []).length == 2) { count += 1; } });
+                oneline.replace(new RegExp("S(?=\\SM(.{" + (len-1) + "}A.{" + (len-1) + "})S\\SM)", "g"), (_, match) => { if ((match.match(/\s/g) || []).length == 2) { count += 1; } });
+                oneline.replace(new RegExp("S(?=\\SS(.{" + (len-1) + "}A.{" + (len-1) + "})M\\SM)", "g"), (_, match) => { if ((match.match(/\s/g) || []).length == 2) { count += 1; } });
+                document.getElementById("out2").innerHTML = count.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 4</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
