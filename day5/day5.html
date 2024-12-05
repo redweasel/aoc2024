@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                // 1. read lines until the first empty line
+                // 2. read lines until end
+                const parts = fileinput.split("\n\n");
+                const rules = parts[0].split("\n");
+                const lines = parts[1].split("\n");
+                let rules_parsed = new Set();
+                for (const rule of rules) {
+                    const parts = rule.split("|");
+                    rules_parsed.add(Number(parts[0]) + Number(parts[1]) * 100)
+                }
+                let lines_parsed = [];
+                for (const line of lines) {
+                    line_parsed = [];
+                    for (const num of line.split(",")) {
+                        line_parsed.push(Number(num));
+                    }
+                    lines_parsed.push(line_parsed)
+                }
+                return [rules_parsed, lines_parsed];
+            }
+
+            function do1() {
+                // today is topological sort day.
+                // however instead of writing good algorithms today,
+                // I will leverage the power of regexp for this first part.
+                const fileinput = document.getElementById("in1").value;
+                const parts = fileinput.split("\n\n");
+                const re = new RegExp("(" + parts[0].replace(/(\d+)\|(\d+)/g, "$2,(?:(\\d+,)*$1)").replace(/\n/g,"|") + ")", "");
+                let accum = 0;
+                for (const line of parts[1].split("\n")) {
+                    if (!re.test(line)) {
+                        const l = line.split(",");
+                        console.log(line);
+                        accum += Number(l[(l.length - 1) / 2]);
+                    }
+                }
+                document.getElementById("out1").innerHTML = accum.toString();
+            }
+
+            function do2() {
+                // as expected, the regex can't carry me through.
+                // Topological sort it is then.
+                // The simplest algorithm is like bubble sort.
+                // its slow, but it got me the answer literally FIRST TRY!
+                // so I deem this solution SAFE instead of OPTIMAL.
+                // the big question in my head is of course how they made
+                // the input such that the topological sort always has a
+                // well defined middle entry. Topological sorts are not unique.
+                const [rules, lines] = read_data();
+                // check the sort on the lines
+                console.log(rules);
+                let accum = 0;
+                for (const line of lines) {
+                    let swap_count = 0;
+                    for (let i = 0; i < line.length; i++) {
+                        for (let j = i + 1; j < line.length; j++) {
+                            // if the opposite order is defined, swap and restart the j loop
+                            if (rules.has(line[j] + line[i] * 100)) {
+                                const tmp = line[i];
+                                line[i] = line[j];
+                                line[j] = tmp;
+                                j = i + 1;
+                                swap_count++;
+                            }
+                        }
+                    }
+                    if (swap_count > 0) {
+                        accum += line[(line.length - 1) / 2];
+                    }
+                }
+                document.getElementById("out2").innerHTML = accum.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 5</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
