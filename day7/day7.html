@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                let eqs = [];
+                for (const line of fileinput.split("\n")) {
+                    if (line.length > 0) {
+                        const [res, nums] = line.split(":");
+                        let nums_parsed = [];
+                        for (const num of nums.split(" ")) {
+                            nums_parsed.push(Number(num));
+                        }
+                        eqs.push([Number(res), nums_parsed]);
+                    }
+                }
+                return eqs;
+            }
+
+            var ops;
+            function test_op(expected_res, remaining) {
+                if (remaining.length == 1) {
+                    return expected_res == remaining[0];
+                }
+                for (const op of ops) {
+                    let a = remaining[0];
+                    let b = remaining[1];
+                    let next = eval(op);
+                    if (next >= 0 && next <= expected_res) {
+                        let arr = [next, ...remaining.slice(2)];
+                        if (test_op(expected_res, arr)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            var out_id;
+            async function run(data) {
+                let accum = 0;
+                for (const [i, [res, nums]] of data.entries()) {
+                    await new Promise(requestAnimationFrame);
+                    const test_res = test_op(res, nums);
+                    if (test_res) {
+                        accum += res;
+                    }
+                    document.getElementById(out_id).innerHTML = `${i}/${data.length}`;
+                }
+                return accum;
+            };
+
+            function do1() {
+                // This is some exponential complexity stuff
+                // first determine how bad it is:
+                // max 13 numbers in a row -> 2^12 = 4096 combinations
+                // 850 numbers -> 2^12*850 = 3481600 checks
+                // thats barely reasonable if done well.
+                // there is a couple shortcuts though!
+                // note that numbers can only increase because all inputs are positive!
+                // -> early stop -> MUCH MUCH faster!
+                const data = read_data();
+                let max_len = 0;
+                for (const [res, nums] of data) {
+                    max_len = Math.max(max_len, nums.length);
+                }
+                console.log(data.length);
+                console.log(max_len);
+                // start recursive algorithm
+                ops = ["a * b", "a + b"];
+                out_id = "out1";
+                run(data).then(function(accum) {
+                    document.getElementById("out1").innerHTML = accum.toString();
+                });
+            }
+
+            function do2() {
+                const data = read_data();
+                // start recursive algorithm
+                ops = ["a * b", "a + b", "Number(a.toString() + b.toString())"];
+                out_id = "out2";
+                run(data).then(function(accum) {
+                    document.getElementById("out2").innerHTML = accum.toString();
+                });
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 7</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
