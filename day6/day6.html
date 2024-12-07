@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            var directions = [[0, -1], [1, 0], [0, 1], [-1, 0]]
+            var directions_c = ['^', '>', 'v', '<'];
+            class Grid {
+                constructor(width, height, content_generator) {
+                    this.width = width;
+                    this.height = height;
+                    this.data = [];
+                    if (content_generator != null) {
+                        let gen = content_generator();
+                        for (let j = 0; j < height; j++) {
+                            let line = [];
+                            for (let i = 0; i < width; i++) {
+                                line.push(gen.next().value);
+                            }
+                            this.data.push(line);
+                        }
+                    } else {
+                        // trust the user to fill in the data.
+                    }
+                    // a cursor position for modifications.
+                    this.cursor = [0, 0, 0];
+                }
+
+                clone() {
+                    // structuredClone didn't quite work...
+                    // could not call functions on the result for some reason.
+                    const clone = new Grid(this.width, this.height, null);
+                    clone.data = structuredClone(this.data);
+                    clone.cursor = [...this.cursor];
+                    return clone;
+                }
+
+                set_cursor(x, y, direction) {
+                    this.cursor = [x, y, direction];
+                }
+
+                get_field(x, y) {
+                    return this.data[y][x];
+                }
+                set_field(x, y, value) {
+                    this.data[y][x] = value;
+                }
+                get_field_cursor() {
+                    return this.data[this.cursor[1]][this.cursor[0]];
+                }
+                set_field_cursor(value) {
+                    this.data[this.cursor[1]][this.cursor[0]] = value;
+                }
+
+                get_field_relative(dx, dy) {
+                    let x = this.cursor[0] + dx;
+                    let y = this.cursor[1] + dy;
+                    if (0 <= x && x < this.width && 0 <= y && y < this.height) {
+                        return this.data[y][x];
+                    }
+                    return null;
+                }
+                get_field_cursor_ahead() {
+                    return this.get_field_relative(directions[this.cursor[2]][0], directions[this.cursor[2]][1]);
+                }
+
+                move(dx, dy) {
+                    // move the cursor if possible, otherwise return false
+                    let x = this.cursor[0] + dx;
+                    let y = this.cursor[1] + dy;
+                    if (0 <= x && x < this.width && 0 <= y && y < this.height) {
+                        this.cursor[0] = x;
+                        this.cursor[1] = y;
+                        return true;
+                    }
+                    return false;
+                }
+
+                move_ahead() {
+                    return this.move(directions[this.cursor[2]][0], directions[this.cursor[2]][1]);
+                }
+
+                turn(rot) {
+                    this.cursor[2] = ((this.cursor[2] + rot) % 4 + 4) % 4;
+                }
+
+                count(value) {
+                    let count = 0;
+                    for (const [x, y, c] of this) {
+                        if (c == value) {
+                            count++;
+                        }
+                    }
+                    return count;
+                }
+
+                toString() {
+                    let str = "";
+                    if (this.data.length == 0) {
+                        return str;
+                    }
+                    for (const [y, line] of this.data.entries()) {
+                        for (const [x, c] of line.entries()) {
+                            if (this.cursor[1] == y && this.cursor[0] == x) {
+                                str += 'X';
+                            }
+                            else {
+                                str += c;
+                            }
+                        }
+                        str += "\n";
+                    }
+                    return str.substring(0, str.length - 1);
+                }
+
+                *[Symbol.iterator]() {
+                    for (const [y, line] of this.data.entries()) {
+                        for (const [x, c] of line.entries()) {
+                            yield [x, y, c];
+                        }
+                    }
+                }
+            }
+
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                const lines = fileinput.split("\n");
+                let grid = new Grid(lines[0].length, lines.length, function*() {
+                    for (const line of lines) {
+                        yield* line;
+                    }
+                });
+                // find the guard and her direction
+                for (const [x, y, c] of grid) {
+                    if (directions_c.includes(c)) {
+                        let direction = directions_c.indexOf(c);
+                        grid.set_cursor(x, y, direction);
+                        break;
+                    }
+                }
+                // remove the guard from the grid
+                grid.set_field_cursor('.');
+                return grid;
+            }
+
+            function guard_walk(grid) {
+                while (true) {
+                    // first mark the current space
+                    const mark = directions_c[grid.cursor[2]];
+                    if (grid.get_field_relative(0, 0) == mark) {
+                        // LOOP
+                        return true;
+                    }
+                    // check if a move is possible
+                    if (grid.get_field_cursor_ahead() != '#') {
+                        // mark only if move is possible
+                        grid.set_field_cursor(mark);
+                        // then move
+                        if (grid.move_ahead()) {
+                            // moved successfully
+                        }
+                        else {
+                            // moved off the field -> end
+                            return false;
+                        }
+                    }
+                    else {
+                        // turn
+                        grid.turn(1);
+                    }
+                }
+            }
+
+            function do1() {
+                // finally some map stuff
+                // lets try to create a grid object in javascript
+                const grid = read_data();
+                // take steps
+                guard_walk(grid);
+                // count X
+                let count = grid.count('^') + grid.count('>') + grid.count('v') + grid.count('<');
+                document.getElementById("out1").innerHTML = count.toString();
+            }
+
+            var global_grid_iter;
+            var global_count;
+            var global_start;
+            function next() {
+                var item;
+                while (item = global_grid_iter.next(), !item.done) {
+                    const [x, y, c] = item.value;
+                    if (x != global_start.cursor[0] || y != global_start.cursor[1]) {
+                        if (directions_c.includes(c)) {
+                            // the guard was here, but didn't start here
+                            // try blocking this!
+                            const test_grid = global_start.clone();
+                            test_grid.set_field(x, y, '#');
+                            if (guard_walk(test_grid)) {
+                                // loop!
+                                global_count += 1;
+                                document.getElementById("out2").innerHTML = global_count.toString();
+                                // max 1 loop detected per browser frame.
+                                requestAnimationFrame(() => {
+                                    next();
+                                });
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            function do2() {
+                // slow and almost naive solution, but works in reasonable time.
+                // I slowed it down quite a bit more to give it a simple live counter.
+                const grid = read_data();
+                global_start = grid.clone();
+                // take steps to know which spaces
+                // may have an effect on the route if blocked.
+                guard_walk(grid);
+                // now check all X for potential loops if blocked
+                global_count = 0;
+                global_grid_iter = grid[Symbol.iterator]();
+                next();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 6</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
