@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                let antennas = new Map();
+                let width = 0;
+                let height = 0;
+                fileinput.split("\n").forEach((line, y) => {
+                    width = Math.max(width, line.length);
+                    if (line.length > 0) {
+                        height++;
+                    }
+                    line.split('').forEach((c, x) => {
+                        if (!/[\.\s#]/.test(c)) {
+                            let list = antennas.get(c);
+                            if (list == null) {
+                                list = []
+                            }
+                            list.push([x, y]);
+                            antennas.set(c, list);
+                        }
+                    });
+                });
+                return [antennas, width, height];
+            }
+
+            function compute_antinodes(antennas, width, height) {
+                let antinodes = new Set();
+                for (let [c, positions] of antennas.entries()) {
+                    prior = [] // elegant but non-optimal
+                    for (let [x1, y1] of positions) {
+                        for (let [x2, y2] of prior) {
+                            // need to have keys, which are hashable
+                            // -> string is the best non hacky version that I could think of
+                            let x3 = x1*2-x2;
+                            let y3 = y1*2-y2;
+                            let x4 = x2*2-x1;
+                            let y4 = y2*2-y1;
+                            if (x3 >= 0 && x3 < width && y3 >= 0 && y3 < height) {
+                                antinodes.add(`${x3},${y3}`);
+                            }
+                            if (x4 >= 0 && x4 < width && y4 >= 0 && y4 < height) {
+                                antinodes.add(`${x4},${y4}`);
+                            }
+                        }
+                        prior.push([x1, y1])
+                    }
+                }
+                return antinodes.size;
+            }
+
+            function compute_antinodes2(antennas, width, height) {
+                let antinodes = new Set();
+                for (let [c, positions] of antennas.entries()) {
+                    prior = [] // elegant but non-optimal
+                    for (let [x1, y1] of positions) {
+                        for (let [x2, y2] of prior) {
+                            // need to have keys, which are hashable
+                            // -> string is the best non hacky version that I could think of
+                            dx = x2-x1;
+                            dy = y2-y1;
+                            for (let x3 = x2, y3 = y2; x3 >= 0 && x3 < width && y3 >= 0 && y3 < height; x3 += dx, y3 += dy) {
+                                antinodes.add(`${x3},${y3}`);
+                            }
+                            for (let x3 = x1, y3 = y1; x3 >= 0 && x3 < width && y3 >= 0 && y3 < height; x3 -= dx, y3 -= dy) {
+                                antinodes.add(`${x3},${y3}`);
+                            }
+                        }
+                        prior.push([x1, y1])
+                    }
+                }
+                return antinodes.size;
+            }
+
+            function do1() {
+                // I have decided to implement a quite general procedure for this.
+                // that is in anticipation of the second part.
+                // The idea is to put all possible antinodes in a hashset.
+                // Then count the ones in bounds.
+                // 1. get the locations of all antennas and group them by frequency
+                // 2. for each frequency, compute all antinodes O(n^2)
+                // 3. count the in bounds antinodes
+                const [antennas, width, height] = read_data();
+                const count = compute_antinodes(antennas, width, height);
+                document.getElementById("out1").innerHTML = count.toString();
+            }
+
+            function do2() {
+                // not quite perfect with my algorithm, but the input is really small, anything works.
+                // at least I got it right first try.
+                const [antennas, width, height] = read_data();
+                const count = compute_antinodes2(antennas, width, height);
+                document.getElementById("out2").innerHTML = count.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 7</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
