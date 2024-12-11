@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                let data = [];
+                let id = 0;
+                let free = false;
+                for (const num of fileinput) {
+                    for (let i = 0; i < Number(num); i++) {
+                        data.push(free ? -1 : id);
+                    }
+                    if (free) {
+                        id++;
+                    }
+                    free = !free;
+                }
+                return data;
+            }
+
+            function compact(data) {
+                let compact_data = [];
+                let end = data.length;
+                for (let i = 0; i < end; i++) {
+                    let id = data[i];
+                    while (id < 0) {
+                        id = data[--end];
+                    }
+                    if (i < end) {
+                        compact_data.push(id);
+                    }
+                }
+                return compact_data;
+            }
+
+            function compact2(data) {
+                let compact_data = [...data];
+                // naive processing without creating ranges for the files
+                for (let i = data.length - 1; i >= 0; i--) {
+                    let id = compact_data[i];
+                    if (id >= 0) {
+                        let file_end = i;
+                        while (i > 0 && compact_data[i - 1] == id) {
+                            i--;
+                        }
+                        let file_start = i;
+                        let file_size = file_end + 1 - file_start;
+                        // try to find a hole of the right size
+                        let hole_size = 0;
+                        let end;
+                        for (end = 0; end < file_start; end++) {
+                            if (compact_data[end] >= 0) {
+                                hole_size = 0;
+                            }
+                            else if (++hole_size == file_size) {
+                                break;
+                            }
+                        }
+                        if (hole_size == file_size) {
+                            // move file
+                            // remove file
+                            for (let j = file_start; j <= file_end; j++) {
+                                compact_data[j] = -1;
+                            }
+                            // add file
+                            for (let j = 0; j < file_size; j++) {
+                                compact_data[end - j] = id;
+                            }
+                        }
+                    }
+                }
+                return compact_data;
+            }
+
+            function checksum(data) {
+                let sum = 0;
+                data.forEach((value, i) => {
+                    if (value >= 0) {
+                        sum += i * value
+                    }
+                });
+                return sum;
+            }
+
+            function do1() {
+                const data = read_data();
+                const compact_data = compact(data);
+                console.log(compact_data);
+                const result = checksum(compact_data);
+                document.getElementById("out1").innerHTML = result.toString();
+            }
+
+            function do2() {
+                const data = read_data();
+                const compact_data = compact2(data);
+                console.log(compact_data);
+                const result = checksum(compact_data);
+                document.getElementById("out2").innerHTML = result.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 9</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
