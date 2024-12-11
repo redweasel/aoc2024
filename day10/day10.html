@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            var directions = [[0, -1], [1, 0], [0, 1], [-1, 0]]
+            var directions_c = ['^', '>', 'v', '<'];
+            class Grid {
+                constructor(width, height, content_generator) {
+                    this.width = width;
+                    this.height = height;
+                    this.data = [];
+                    if (content_generator != null) {
+                        let gen = content_generator();
+                        for (let j = 0; j < height; j++) {
+                            let line = [];
+                            for (let i = 0; i < width; i++) {
+                                line.push(gen.next().value);
+                            }
+                            this.data.push(line);
+                        }
+                    } else {
+                        // trust the user to fill in the data.
+                    }
+                    // a cursor position for modifications.
+                    this.cursor = [0, 0, 0];
+                }
+
+                clone() {
+                    // structuredClone didn't quite work...
+                    // could not call functions on the result for some reason.
+                    const clone = new Grid(this.width, this.height, null);
+                    clone.data = structuredClone(this.data);
+                    clone.cursor = [...this.cursor];
+                    return clone;
+                }
+
+                set_cursor(x, y, direction) {
+                    this.cursor = [x, y, direction];
+                }
+
+                in_bounds(x, y) {
+                    return x >= 0 && y >= 0 && x < this.width && y < this.height;
+                }
+                get_field(x, y) {
+                    return this.data[y][x];
+                }
+                set_field(x, y, value) {
+                    this.data[y][x] = value;
+                }
+                get_field_cursor() {
+                    return this.data[this.cursor[1]][this.cursor[0]];
+                }
+                set_field_cursor(value) {
+                    this.data[this.cursor[1]][this.cursor[0]] = value;
+                }
+
+                get_field_relative(dx, dy) {
+                    let x = this.cursor[0] + dx;
+                    let y = this.cursor[1] + dy;
+                    if (0 <= x && x < this.width && 0 <= y && y < this.height) {
+                        return this.data[y][x];
+                    }
+                    return null;
+                }
+                get_field_cursor_ahead() {
+                    return this.get_field_relative(directions[this.cursor[2]][0], directions[this.cursor[2]][1]);
+                }
+
+                move(dx, dy) {
+                    // move the cursor if possible, otherwise return false
+                    let x = this.cursor[0] + dx;
+                    let y = this.cursor[1] + dy;
+                    if (0 <= x && x < this.width && 0 <= y && y < this.height) {
+                        this.cursor[0] = x;
+                        this.cursor[1] = y;
+                        return true;
+                    }
+                    return false;
+                }
+
+                move_ahead() {
+                    return this.move(directions[this.cursor[2]][0], directions[this.cursor[2]][1]);
+                }
+
+                turn(rot) {
+                    this.cursor[2] = ((this.cursor[2] + rot) % 4 + 4) % 4;
+                }
+
+                count(value) {
+                    let count = 0;
+                    for (const [x, y, c] of this) {
+                        if (c == value) {
+                            count++;
+                        }
+                    }
+                    return count;
+                }
+
+                find_all(value) {
+                    let pos = [];
+                    for (const [x, y, c] of this) {
+                        if (c == value) {
+                            pos.push([x, y]);
+                        }
+                    }
+                    return pos;
+                }
+
+                toString() {
+                    let str = "";
+                    if (this.data.length == 0) {
+                        return str;
+                    }
+                    for (const [y, line] of this.data.entries()) {
+                        for (const [x, c] of line.entries()) {
+                            if (this.cursor[1] == y && this.cursor[0] == x) {
+                                str += 'X';
+                            }
+                            else {
+                                str += c;
+                            }
+                        }
+                        str += "\n";
+                    }
+                    return str.substring(0, str.length - 1);
+                }
+
+                *[Symbol.iterator]() {
+                    for (const [y, line] of this.data.entries()) {
+                        for (const [x, c] of line.entries()) {
+                            yield [x, y, c];
+                        }
+                    }
+                }
+            }
+
+            class FloodFillGrid {
+                constructor(initial) {
+                    // wavefront has the position data
+                    this.wavefront = [initial];
+                    // infill just has keys
+                    this.infill = new Set([initial.toString()]);
+                }
+
+                advance(rule) {
+                    // get all neighbor positions of the wavefront,
+                    // that are not part of the infill
+                    let new_wavefront = [];
+                    for (const pos of this.wavefront) {
+                        for (const dir of directions) {
+                            const new_pos = [pos[0] + dir[0], pos[1] + dir[1]];
+                            if (rule(pos, new_pos)) {
+                                const key = new_pos.toString()
+                                if (!this.infill.has(key)) {
+                                    new_wavefront.push(new_pos);
+                                    this.infill.add(key);
+                                }
+                            }
+                        }
+                    }
+                    this.wavefront = new_wavefront;
+                }
+
+                count_wavefront(rule) {
+                    let count = 0;
+                    this.wavefront.forEach((pos) => {
+                        if (rule(pos)) {
+                            count++;
+                        }
+                    });
+                    return count;
+                }
+            }
+
+            class FloodFillGrid2 {
+                constructor(initial) {
+                    // wavefront has the position data
+                    this.wavefront = [initial];
+                    // infill just has keys
+                    this.infill = new Map();
+                    this.infill.set(initial.toString(), 1);
+                }
+
+                advance(rule) {
+                    // get all neighbor positions of the wavefront,
+                    // that are not part of the infill
+                    let new_wavefront = [];
+                    for (const pos of this.wavefront) {
+                        for (const dir of directions) {
+                            const new_pos = [pos[0] + dir[0], pos[1] + dir[1]];
+                            if (rule(pos, new_pos)) {
+                                const key = new_pos.toString()
+                                if (!this.infill.has(key)) {
+                                    new_wavefront.push(new_pos);
+                                    this.infill.set(key, this.infill.get(pos.toString()));
+                                }
+                                else {
+                                    // count up the number of paths, but don't add to wavefront
+                                    this.infill.set(key, this.infill.get(key) + this.infill.get(pos.toString()));
+                                }
+                            }
+                        }
+                    }
+                    this.wavefront = new_wavefront;
+                }
+
+                count_wavefront(rule) {
+                    let count = 0;
+                    this.wavefront.forEach((pos) => {
+                        if (rule(pos)) {
+                            count += this.infill.get(pos.toString());
+                        }
+                    });
+                    return count;
+                }
+            }
+
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                const lines = fileinput.split("\n");
+                let grid = new Grid(lines[0].length, lines.length, function*() {
+                    for (const line of lines) {
+                        yield* line;
+                    }
+                });
+                return grid;
+            }
+
+            function do1() {
+                const grid = read_data();
+                let total_score = 0;
+                for (const start of grid.find_all('0')) {
+                    let flood = new FloodFillGrid(start)
+                    for (let i = 0; i < 9; i++) {
+                        flood.advance((from, to) => {
+                            if (!grid.in_bounds(to[0], to[1])) {
+                                return false;
+                            }
+                            let from_num = Number(grid.get_field(from[0], from[1]));
+                            let to_num = Number(grid.get_field(to[0], to[1]));
+                            return to_num == from_num + 1;
+                        });
+                    }
+                    let score = flood.count_wavefront(([x, y]) => grid.get_field(x, y) == '9');
+                    total_score += score;
+                }
+                document.getElementById("out1").innerHTML = total_score.toString();
+            }
+
+            function do2() {
+                const grid = read_data();
+                let total_score = 0;
+                for (const start of grid.find_all('0')) {
+                    let flood = new FloodFillGrid2(start)
+                    for (let i = 0; i < 9; i++) {
+                        flood.advance((from, to) => {
+                            if (!grid.in_bounds(to[0], to[1])) {
+                                return false;
+                            }
+                            let from_num = Number(grid.get_field(from[0], from[1]));
+                            let to_num = Number(grid.get_field(to[0], to[1]));
+                            return to_num == from_num + 1;
+                        });
+                    }
+                    let score = flood.count_wavefront(([x, y]) => grid.get_field(x, y) == '9');
+                    total_score += score;
+                }
+                document.getElementById("out2").innerHTML = total_score.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 10</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
