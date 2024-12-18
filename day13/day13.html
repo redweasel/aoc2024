@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            /// return (g, x, y) such that a*x + b*y = g = gcd(a, b)
+            function xgcd(a, b) {
+                let x0 = 0;
+                let x1 = 1;
+                let y0 = 1;
+                let y1 = 0;
+                while (a != 0) {
+                    let q;
+                    [q, a, b] = [Math.floor(b / a), b % a, a];
+                    [y0, y1] = [y1, y0 - q * y1];
+                    [x0, x1] = [x1, x0 - q * x1];
+                }
+                return [b, x0, y0];
+            }
+
+            /// return x such that (x * a) % m == 1 or x = 0 if a and m share a divisor
+            function mod_inv(a, m) {
+                let [g, x, _] = xgcd(a, m);
+                if (g != 1) { return 0; } else { return (x % m + m) % m; }
+            }
+
+            function read_data(process) {
+                const fileinput = document.getElementById("in1").value;
+                const machines = fileinput.trim().split("\n\n");
+                for (const machine of machines) {
+                    let [a, b, p] = machine.split("\n");
+                    let [ax, ay] = a.match(/\d+/g);
+                    let [bx, by] = b.match(/\d+/g);
+                    let [px, py] = p.match(/\d+/g);
+                    process(Number(ax), Number(bx), Number(px), Number(ay), Number(by), Number(py));
+                }
+            }
+
+            function solve_machine(ax, bx, px, ay, by, py) {
+                // first divide out the gcd's
+                gcd_x = xgcd(ax, bx)[0];
+                gcd_y = xgcd(ay, by)[0];
+                if (px % gcd_x != 0 || py % gcd_y != 0) {
+                    // impossible machine
+                    //console.log("impossible machine (gcd)");
+                    return null;
+                }
+                ax /= gcd_x;
+                bx /= gcd_x;
+                px /= gcd_x;
+                ay /= gcd_y;
+                by /= gcd_y;
+                py /= gcd_y;
+                a_minx = (px * mod_inv(ax, bx)) % bx;
+                a_miny = (py * mod_inv(ay, by)) % by;
+                b_minx = (px * mod_inv(bx, ax)) % ax;
+                b_miny = (py * mod_inv(by, ay)) % ay;
+                kx = (px-(ax*a_minx+bx*b_minx))/(ax*bx);
+                ky = (py-(ay*a_miny+by*b_miny))/(ay*by);
+                console.assert(kx % 1 == 0 && ky % 1 == 0);
+                // now search for solutions n,m with
+                // a_minx + bx*n = a_miny + by*m
+                // b_minx + ax*(kx-n) = b_miny + ay*(ky-m)
+                // note, there may just be one!
+                //  bx*n - by*m = a_miny - a_minx
+                // -ax*n + ay*m = b_miny + ay*ky - ax*kx - b_minx
+                let det = bx * ay - by * ax;
+                let p = a_miny - a_minx;
+                let q = b_miny + ay*ky - ax*kx - b_minx;
+                let n = (ay * p + by * q) / det;
+                //let m = (ax * p + bx * q) / det;
+                let a = a_minx + bx*n;
+                let b = b_minx + ax*(kx-n);
+                if (a % 1 != 0 || b % 1 != 0) {
+                    //console.log("impossible machine (div)");
+                    return null;
+                }
+                return [a, b];
+            }
+
+            function do1() {
+                // instructions clear, however it's unclear to me why
+                // it says no more than 100 presses of a button are needed.
+                // Doesn't sound like a condition for the result, but
+                // rather like a recommendation to choose a simple algorithm.
+                // weird... anyway
+                // The math is the following:
+                // if the gcd of A and B is not a divisor of the prize, it's impossible to get it.
+                // otherwise, divide out the gcd first to simplify the problem.
+                // now A and B are coprime. let p be the prize position here.
+                // (I)   A*a+B*b=p
+                // (II)  A*a+B*b = B*b = p (mod A)
+                // (III) A*a+B*b = A*a = p (mod B)
+                // if the second two are true, then the first one is true for mod A*B.
+                // from this one can extract a = ((p mod B)*modinv(A mod B) mod B)+B*n
+                // and b = ((p mod A)*modinv(B mod A) mod A)+A*m
+                // n and m are now the parameters to search for for the optimal solution.
+                // there is always a solution here, as II and III are true by construction
+                // and I can be made true, as it is alread fulfilled for mod A*B and both n and m lead to steps of A*B.
+                // therefore p-(A*a_min+B*b_min)=k*A*B and n+m=k
+                // now the price is c=3*a+b, so to minimize cost c, use n = 0 and m = k
+                // however remember that we need to solve two of these problems: for X and Y.
+                // the numbers for a_min, b_min, A, B etc will be different.
+                // for both we will have a separate choice for n, such that a_x = a_y.
+                // that restricts the n that can be used!
+                
+                // seems like I could solve it in closed form...
+                // so why that 100 presses limit?
+                // anyway
+
+                // hell yeah! first try!
+
+                let tokens_used = 0;
+                read_data((ax, bx, px, ay, by, py) => {
+                    //console.log("machine:", ax, bx, px, ay, by, py);
+                    let sol = solve_machine(ax, bx, px, ay, by, py);
+                    if (sol != null) {
+                        let [a, b] = sol;
+                        console.log(a, b);
+                        tokens_used += a*3 + b;
+                    }
+                });
+
+                document.getElementById("out1").innerHTML = tokens_used.toString();
+            }
+
+            function do2() {
+                let tokens_used = 0;
+                read_data((ax, bx, px, ay, by, py) => {
+                    //console.log("machine:", ax, bx, px, ay, by, py);
+                    let sol = solve_machine(ax, bx, px + 10000000000000, ay, by, py + 10000000000000);
+                    if (sol != null) {
+                        let [a, b] = sol;
+                        console.log(a, b);
+                        tokens_used += a*3 + b;
+                    }
+                });
+
+                document.getElementById("out2").innerHTML = tokens_used.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 13</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
