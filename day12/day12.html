@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            var directions = [[0, -1], [1, 0], [0, 1], [-1, 0]]
+            var directions_c = ['^', '>', 'v', '<'];
+            class Grid {
+                constructor(width, height, content_generator) {
+                    this.width = width;
+                    this.height = height;
+                    this.data = [];
+                    if (content_generator != null) {
+                        let gen = content_generator();
+                        for (let j = 0; j < height; j++) {
+                            let line = [];
+                            for (let i = 0; i < width; i++) {
+                                line.push(gen.next().value);
+                            }
+                            this.data.push(line);
+                        }
+                    } else {
+                        // trust the user to fill in the data.
+                    }
+                    // a cursor position for modifications.
+                    this.cursor = [0, 0, 0];
+                }
+
+                clone() {
+                    // structuredClone didn't quite work...
+                    // could not call functions on the result for some reason.
+                    const clone = new Grid(this.width, this.height, null);
+                    clone.data = structuredClone(this.data);
+                    clone.cursor = [...this.cursor];
+                    return clone;
+                }
+
+                set_cursor(x, y, direction) {
+                    this.cursor = [x, y, direction];
+                }
+
+                in_bounds(x, y) {
+                    return x >= 0 && y >= 0 && x < this.width && y < this.height;
+                }
+                get_field(x, y) {
+                    return this.data[y][x];
+                }
+                set_field(x, y, value) {
+                    this.data[y][x] = value;
+                }
+                get_field_cursor() {
+                    return this.data[this.cursor[1]][this.cursor[0]];
+                }
+                set_field_cursor(value) {
+                    this.data[this.cursor[1]][this.cursor[0]] = value;
+                }
+
+                get_field_relative(dx, dy) {
+                    let x = this.cursor[0] + dx;
+                    let y = this.cursor[1] + dy;
+                    if (0 <= x && x < this.width && 0 <= y && y < this.height) {
+                        return this.data[y][x];
+                    }
+                    return null;
+                }
+                get_field_cursor_ahead() {
+                    return this.get_field_relative(directions[this.cursor[2]][0], directions[this.cursor[2]][1]);
+                }
+
+                move(dx, dy) {
+                    // move the cursor if possible, otherwise return false
+                    let x = this.cursor[0] + dx;
+                    let y = this.cursor[1] + dy;
+                    if (0 <= x && x < this.width && 0 <= y && y < this.height) {
+                        this.cursor[0] = x;
+                        this.cursor[1] = y;
+                        return true;
+                    }
+                    return false;
+                }
+
+                move_ahead() {
+                    return this.move(directions[this.cursor[2]][0], directions[this.cursor[2]][1]);
+                }
+
+                turn(rot) {
+                    this.cursor[2] = ((this.cursor[2] + rot) % 4 + 4) % 4;
+                }
+
+                count(value) {
+                    let count = 0;
+                    for (const [x, y, c] of this) {
+                        if (c == value) {
+                            count++;
+                        }
+                    }
+                    return count;
+                }
+
+                find_all(value) {
+                    let pos = [];
+                    for (const [x, y, c] of this) {
+                        if (c == value) {
+                            pos.push([x, y]);
+                        }
+                    }
+                    return pos;
+                }
+
+                toString() {
+                    let str = "";
+                    if (this.data.length == 0) {
+                        return str;
+                    }
+                    for (const [y, line] of this.data.entries()) {
+                        for (const [x, c] of line.entries()) {
+                            if (this.cursor[1] == y && this.cursor[0] == x) {
+                                str += 'X';
+                            }
+                            else {
+                                str += c;
+                            }
+                        }
+                        str += "\n";
+                    }
+                    return str.substring(0, str.length - 1);
+                }
+
+                *[Symbol.iterator]() {
+                    for (const [y, line] of this.data.entries()) {
+                        for (const [x, c] of line.entries()) {
+                            yield [x, y, c];
+                        }
+                    }
+                }
+            }
+
+            class FloodFillGrid {
+                constructor(initial) {
+                    // wavefront has the position data
+                    this.wavefront = [initial];
+                    // infill just has keys
+                    this.infill = new Set([initial.toString()]);
+                }
+
+                advance(rule) {
+                    // get all neighbor positions of the wavefront,
+                    // that are not part of the infill
+                    let new_wavefront = [];
+                    for (const pos of this.wavefront) {
+                        for (const dir of directions) {
+                            const new_pos = [pos[0] + dir[0], pos[1] + dir[1]];
+                            const key = new_pos.toString()
+                            if (!this.infill.has(key)) {
+                                if (rule(pos, new_pos)) {
+                                    new_wavefront.push(new_pos);
+                                    this.infill.add(key);
+                                }
+                            }
+                        }
+                    }
+                    this.wavefront = new_wavefront;
+                }
+
+                advance_full(rule) {
+                    while (this.wavefront.length > 0) {
+                        this.advance(rule);
+                    }
+                }
+
+                count_wavefront(rule) {
+                    let count = 0;
+                    this.wavefront.forEach((pos) => {
+                        if (rule(pos)) {
+                            count++;
+                        }
+                    });
+                    return count;
+                }
+            }
+
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                const lines = fileinput.trim().split("\n");
+                let grid = new Grid(lines[0].length, lines.length, function*() {
+                    for (const line of lines) {
+                        yield* line;
+                    }
+                });
+                return grid;
+            }
+
+            function do1() {
+                // wrong: 1490102 (too high)
+                // wrong: 1450622 (too high)
+                // first observations:
+                // - The letters are just there to indicate fences. Their value doesn't matter.
+                // - The regions need to be computed one by one, as area*perimeter doesn't combine like
+                //   (area1+area2)*(perimeter1+perimeter2) != area1*perimeter1+area2*perimeter2
+                // it could be that the second part makes the letters matter by
+                // combining the area and perimeter of those in a single calculation, instead of by region.
+                // STRATEGY: scanline
+                // - keep track of the active regions
+                //   - add new regions and extend old regions
+                //   - whenever two regions combine in a new line, combine their totals.
+                // - whenever a region ends, add the price to the total
+                // ---- tried it... not really good, as I have to keep track of so many things when regions split, merge, resplit and remerge...
+                let grid = read_data();
+                let total_score = 0;
+
+                for (let x = 0; x < grid.width; x++) {
+                    for (let y = 0; y < grid.height; y++) {
+                        let perimeter = 0;
+                        let area = 1;
+                        let c = grid.get_field(x, y);
+                        if (c == '\0') {
+                            continue;
+                        }
+                        let flood = new FloodFillGrid([x, y]);
+                        flood.advance_full(([x0, y0], [x, y]) => {
+                            grid.set_field(x0, y0, '\0');
+                            if (grid.in_bounds(x, y) && grid.get_field(x, y) == c) {
+                                grid.set_field(x, y, '\0');
+                                area++;
+                                return true;
+                            }
+                            else {
+                                // wall detected
+                                perimeter++;
+                                return false;
+                            }
+                        });
+                        console.log(`${c}: area = ${area}, perimeter = ${perimeter}`);
+                        total_score += area * perimeter;
+                    }
+                }
+                document.getElementById("out1").innerHTML = total_score.toString();
+            }
+
+            function do2() {
+                // well... my 1. approach isn't exactly going to work for this...
+                // Instead of the wavefront, I need to follow the boundary.
+                // However, to not count double, I still need to invalidate
+                // the entire inside, so I still need the wave...
+                // The simplest way to fix my code is to store where
+                // the fences are added in the wavefront algorithm.
+                // Then compute the discount on those positions by combining neighboring ones.
+                // To combine neighboring ones, one can sort them.
+                let grid = read_data();
+                let total_score = 0;
+
+                for (let x = 0; x < grid.width; x++) {
+                    for (let y = 0; y < grid.height; y++) {
+                        let area = 1;
+                        let c = grid.get_field(x, y);
+                        if (c == '\0') {
+                            continue;
+                        }
+                        let flood = new FloodFillGrid([x, y]);
+                        let walls_x1 = [];
+                        let walls_x2 = [];
+                        let walls_y1 = [];
+                        let walls_y2 = [];
+                        flood.advance_full(([x0, y0], [x, y]) => {
+                            grid.set_field(x0, y0, '\0');
+                            if (grid.in_bounds(x, y) && grid.get_field(x, y) == c) {
+                                grid.set_field(x, y, '\0');
+                                area++;
+                                return true;
+                            }
+                            else {
+                                // wall detected
+                                (x0 != x ? (x0 > x ? walls_x1 : walls_x2) : (y0 > y ? walls_y1 : walls_y2)).push([Math.min(x0, x), Math.min(y0, y)]);
+                                return false;
+                            }
+                        });
+                        let sides = 0;
+                        // now all of them are in order to just simply loop to find the sides
+                        for (walls_x of [walls_x1, walls_x2]) {
+                            let last_x = -2;
+                            let last_y = -2;
+                            // sort is stable, so this works:
+                            walls_x.sort((a, b) => a[0] - b[0]);
+                            walls_x.sort((a, b) => a[0] == b[0] ? a[1] - b[1] : 0);
+                            for (const [x, y] of walls_x) {
+                                if (x == last_x && y == last_y + 1) {
+                                    // just a continuation
+                                }
+                                else {
+                                    sides++;
+                                }
+                                last_x = x;
+                                last_y = y;
+                            }
+                        }
+                        for (walls_y of [walls_y1, walls_y2]) {
+                            last_x = -2;
+                            last_y = -2;
+                            // sort is stable, so this works:
+                            walls_y.sort((a, b) => a[1] - b[1]);
+                            walls_y.sort((a, b) => a[1] == b[1] ? a[0] - b[0] : 0);
+                            for (const [x, y] of walls_y) {
+                                if (y == last_y && x == last_x + 1) {
+                                    // just a continuation
+                                }
+                                else {
+                                    sides++;
+                                }
+                                last_x = x;
+                                last_y = y;
+                            }
+                        }
+                        console.log(`${c}: area = ${area}, perimeter = ${walls_x.length + walls_y.length}, sides = ${sides}`);
+                        total_score += area * sides;
+                    }
+                }
+                document.getElementById("out2").innerHTML = total_score.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 12</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
