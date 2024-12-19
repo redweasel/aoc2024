@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            class Grid {
+                constructor(width, height, content_generator) {
+                    this.width = width;
+                    this.height = height;
+                    this.data = [];
+                    if (content_generator != null) {
+                        let gen = content_generator();
+                        for (let j = 0; j < height; j++) {
+                            let line = [];
+                            for (let i = 0; i < width; i++) {
+                                line.push(gen.next().value);
+                            }
+                            this.data.push(line);
+                        }
+                    } else {
+                        // trust the user to fill in the data.
+                    }
+                }
+                set_field(x, y, value) {
+                    this.data[y][x] = value;
+                }
+
+                toString() {
+                    let str = "";
+                    if (this.data.length == 0) {
+                        return str;
+                    }
+                    for (const [y, line] of this.data.entries()) {
+                        for (const [x, c] of line.entries()) {
+                            str += c;
+                        }
+                        str += "\n";
+                    }
+                    return str.substring(0, str.length - 1);
+                }
+            }
+
+            function read_data(process) {
+                const fileinput = document.getElementById("in1").value;
+                const robots = fileinput.trim().split("\n");
+                for (const robot of robots) {
+                    let [p, v] = robot.substring(2).split(" v=");
+                    let [px, py] = p.split(",");
+                    let [vx, vy] = v.split(",");
+                    process(Number(px), Number(py), Number(vx), Number(vy));
+                }
+            }
+
+            function do1() {
+                // okay, math again, but simpler actually.
+                // luckily.
+                // as I will probably need to solve it again after the Historian
+                // comes out of the toilet, which might take a while.
+
+                let steps = 100;
+                let width = 101;
+                let height = 103;
+                let q00 = 0;
+                let q01 = 0;
+                let q10 = 0;
+                let q11 = 0;
+                read_data((px, py, vx, vy) => {
+                    px = ((px + vx * (steps % width)) % width + width) % width;
+                    py = ((py + vy * (steps % height)) % height + height) % height;
+                    console.log(`ended at ${px}, ${py}`);
+                    if (px < (width - 1) / 2) {
+                        if (py < (height - 1) / 2) { q00++; } else if (py > (height - 1) / 2) { q01++; }
+                    }
+                    else if (px > (width - 1) / 2) {
+                        if (py < (height - 1) / 2) { q10++; } else if (py > (height - 1) / 2) { q11++; }
+                    }
+                });
+                console.log(`quadrants: ${q00}, ${q01}, ${q10}, ${q11}`);
+                let safety_factor = q00 * q01 * q10 * q11;
+                document.getElementById("out1").innerHTML = safety_factor.toString();
+            }
+
+            function do2() {
+                // oof, not what I expected at all...
+                // without knowing how the christmas tree looks,
+                // it's really hard to solve for it...
+                // I'm assuming it is x-mirror symmetric.
+                // That already rules out most configurations.
+                // sadly that's not it.
+                // new plan:
+                // compute the average position and see if that is at 2/3 in y
+                // plan b (in case plan a goes up in flames):
+                // make an animation (101*103 frames) and use my brain to recognise the tree.
+                // through a combination of plan a and watching the console I managed to find it!
+                // it's at 8270
+                // then I searched again from 0 (I was searching from 5000 onwards)
+                // and found that it is still 8270, so that is my answer
+                data = [];
+                read_data((px, py, vx, vy) => {
+                    data.push([px, py, vx, vy]);
+                });
+                let width = 101;
+                let height = 103;
+                for (let steps = 0; steps < 101*103; steps++) {
+                    let posx = 0;
+                    let posy = 0;
+                    let grid = new Grid(width, height, function*() { while(true) { yield '.'; } })
+                    for (const [px_old, py_old, vx, vy] of data) {
+                        let px = ((px_old + vx * (steps % width)) % width + width) % width;
+                        let py = ((py_old + vy * (steps % height)) % height + height) % height;
+                        posx += px;
+                        posy += py;
+                        grid.set_field(px, py, "X");
+                    };
+                    if (grid.toString().match(/XXXXXXXXXXXXXX/)) {
+                        console.log(steps);
+                        console.log(grid.toString());
+                    }
+                    if (Math.abs(posy/data.length - height/2) > 4 || Math.abs(posx/data.length - width/2) > 5) {
+                        //console.log(steps);
+                        //console.log(grid.toString());
+                    }
+                }
+                //document.getElementById("out2").innerHTML = tokens_used.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 14</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
