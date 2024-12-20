@@ -113,15 +113,15 @@
                         grid.set_field(px, py, "X");
                     };
                     if (grid.toString().match(/XXXXXXXXXXXXXX/)) {
-                        console.log(steps);
                         console.log(grid.toString());
+                        document.getElementById("out2").innerHTML = steps.toString();
+                        return;
                     }
                     if (Math.abs(posy/data.length - height/2) > 4 || Math.abs(posx/data.length - width/2) > 5) {
                         //console.log(steps);
                         //console.log(grid.toString());
                     }
                 }
-                //document.getElementById("out2").innerHTML = tokens_used.toString();
             }
         </script>
     </head>

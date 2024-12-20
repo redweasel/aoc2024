@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            var directions = [[0, -1], [1, 0], [0, 1], [-1, 0]]
+            var directions_c = ['^', '>', 'v', '<'];
+            class Grid {
+                constructor(width, height, content_generator) {
+                    this.width = width;
+                    this.height = height;
+                    this.data = [];
+                    if (content_generator != null) {
+                        let gen = content_generator();
+                        for (let j = 0; j < height; j++) {
+                            let line = [];
+                            for (let i = 0; i < width; i++) {
+                                line.push(gen.next().value);
+                            }
+                            this.data.push(line);
+                        }
+                    } else {
+                        // trust the user to fill in the data.
+                    }
+                    // a cursor position for modifications.
+                    this.cursor = [0, 0];
+                }
+
+                clone() {
+                    // structuredClone didn't quite work...
+                    // could not call functions on the result for some reason.
+                    const clone = new Grid(this.width, this.height, null);
+                    clone.data = structuredClone(this.data);
+                    clone.cursor = [...this.cursor];
+                    return clone;
+                }
+
+                set_cursor(x, y) {
+                    this.cursor = [x, y];
+                }
+
+                in_bounds(x, y) {
+                    return x >= 0 && y >= 0 && x < this.width && y < this.height;
+                }
+                get_field(x, y) {
+                    return this.data[y][x];
+                }
+                set_field(x, y, value) {
+                    this.data[y][x] = value;
+                }
+                get_field_cursor() {
+                    return this.data[this.cursor[1]][this.cursor[0]];
+                }
+                set_field_cursor(value) {
+                    this.data[this.cursor[1]][this.cursor[0]] = value;
+                }
+
+                get_field_relative(dx, dy) {
+                    let x = this.cursor[0] + dx;
+                    let y = this.cursor[1] + dy;
+                    if (0 <= x && x < this.width && 0 <= y && y < this.height) {
+                        return this.data[y][x];
+                    }
+                    return null;
+                }
+                set_field_relative(dx, dy, value) {
+                    let x = this.cursor[0] + dx;
+                    let y = this.cursor[1] + dy;
+                    if (0 <= x && x < this.width && 0 <= y && y < this.height) {
+                        this.data[y][x] = value;
+                    }
+                }
+
+                move(dx, dy) {
+                    // move the cursor if possible, otherwise return false
+                    let x = this.cursor[0] + dx;
+                    let y = this.cursor[1] + dy;
+                    if (0 <= x && x < this.width && 0 <= y && y < this.height) {
+                        this.cursor[0] = x;
+                        this.cursor[1] = y;
+                        return true;
+                    }
+                    return false;
+                }
+
+                count(value) {
+                    let count = 0;
+                    for (const [x, y, c] of this) {
+                        if (c == value) {
+                            count++;
+                        }
+                    }
+                    return count;
+                }
+
+                find_all(value) {
+                    let pos = [];
+                    for (const [x, y, c] of this) {
+                        if (c == value) {
+                            pos.push([x, y]);
+                        }
+                    }
+                    return pos;
+                }
+
+                toString() {
+                    let str = "";
+                    if (this.data.length == 0) {
+                        return str;
+                    }
+                    for (const [y, line] of this.data.entries()) {
+                        for (const [x, c] of line.entries()) {
+                            if (this.cursor[1] == y && this.cursor[0] == x) {
+                                str += 'X';
+                            }
+                            else {
+                                str += c;
+                            }
+                        }
+                        str += "\n";
+                    }
+                    return str.substring(0, str.length - 1);
+                }
+
+                *[Symbol.iterator]() {
+                    for (const [y, line] of this.data.entries()) {
+                        for (const [x, c] of line.entries()) {
+                            yield [x, y, c];
+                        }
+                    }
+                }
+            }
+            
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                const [grid_lines, instr_lines] = fileinput.split("\n\n");
+                const lines = grid_lines.split("\n");
+                let grid = new Grid(lines[0].length, lines.length, function*() {
+                    for (const line of lines) {
+                        yield* line;
+                    }
+                });
+                let cursor = grid.find_all('@');
+                console.assert(cursor.length == 1, "more or less than a single robot found");
+                grid.set_cursor(cursor[0][0], cursor[0][1]);
+                grid.set_field_cursor('.');
+                let instr = instr_lines.split("").filter((c) => directions_c.includes(c));
+                return [grid, instr];
+            }
+
+            function move(grid, c) {
+                const dir = directions[directions_c.indexOf(c)];
+                let boxes_m1 = 1;
+                while (true) {
+                    let path = grid.get_field_relative(dir[0] * boxes_m1, dir[1] * boxes_m1);
+                    if (path == '#') {
+                        // blocked
+                        return false;
+                    }
+                    if (path == '.') {
+                        // open -> move
+                        if (boxes_m1 > 1) {
+                            grid.set_field_relative(dir[0] * boxes_m1, dir[1] * boxes_m1, 'O');
+                        }
+                        grid.move(dir[0], dir[1]);
+                        if (boxes_m1 > 1) {
+                            grid.set_field_cursor('.');
+                        }
+                        return true;
+                    }
+                    boxes_m1++;
+                    // here path == 'O', which means progress
+                    if (path != 'O') {
+                        console.error(`unknown character ${path} found.`);
+                        break;
+                    }
+                }
+            }
+
+            function do1() {
+                const [grid, instr] = read_data();
+                for (const c of instr) {
+                    move(grid, c);
+                }
+                console.log(grid.toString());
+                let gps_sum = 0;
+                for (const [x, y, c] of grid) {
+                    if (c == 'O') {
+                        gps_sum += x + 100 * y;
+                    }
+                }
+                document.getElementById("out1").innerHTML = gps_sum.toString();
+            }
+            
+            function read_data2() {
+                const fileinput = document.getElementById("in1").value;
+                let [grid_lines, instr_lines] = fileinput.split("\n\n");
+                grid_lines = grid_lines.replaceAll("#", "##").replaceAll("O", "[]").replaceAll(".", "..").replaceAll("@", "@.");
+                const lines = grid_lines.split("\n");
+                let grid = new Grid(lines[0].length, lines.length, function*() {
+                    for (const line of lines) {
+                        yield* line;
+                    }
+                });
+                let cursor = grid.find_all('@');
+                console.assert(cursor.length == 1, "more or less than a single robot found");
+                grid.set_cursor(cursor[0][0], cursor[0][1]);
+                grid.set_field_cursor('.');
+                let instr = instr_lines.split("").filter((c) => directions_c.includes(c));
+                return [grid, instr];
+            }
+
+            function move2(grid, c) {
+                const dir = directions[directions_c.indexOf(c)];
+                if (dir[0] == 0) {
+                    return move2_vertical(grid, dir[1]);
+                }
+                else {
+                    return move2_horizontal(grid, dir[0]);
+                }
+            }
+            function move2_horizontal(grid, dx) {
+                console.assert(dx != 0);
+                let boxes_m1 = 1;
+                while (true) {
+                    let path = grid.get_field_relative(dx * boxes_m1, 0);
+                    if (path == '#') {
+                        // blocked
+                        return false;
+                    }
+                    if (path == '.') {
+                        // open -> move
+                        grid.move(dx, 0);
+                        for (let i = 1; i < boxes_m1; i++) {
+                            grid.set_field_relative(dx * i, 0, (i % 2 == 1) == (dx > 0) ? '[' : ']');
+                        }
+                        if (boxes_m1 > 1) {
+                            grid.set_field_cursor('.');
+                        }
+                        return true;
+                    }
+                    boxes_m1++;
+                    // here path == 'O', which means progress
+                    if (path != '[' && path != ']') {
+                        console.error(`unknown character ${path} found.`);
+                        break;
+                    }
+                }
+            }
+            function move2_vertical(grid, dy) {
+                console.assert(dy != 0);
+                // much more difficult!
+                // left right movement is the same, but up and down are difficult.
+                // a whole pyramid of boxes can be shifted at once.
+                // The strategy is to find the entire pyramid line by line
+                // (not recursive, as that would quickly be exponential complexity!)
+                
+                // first check the short path
+                let path = grid.get_field_relative(0, dy);
+                if (path == '#') {
+                    return false;
+                }
+                if (path == '.') {
+                    grid.move(0, dy);
+                    return true;
+                }
+                // there was a box...
+                // now check if the pyramid is moveable
+                // and save all spots that would change state when moved
+                let lines = 0;
+                let coverage = new Set([0]); // which offsets are covered by the pyramid line
+                let total_cover = [];
+                while (true) {
+                    lines++;
+                    let new_coverage = new Set();
+                    for (const tile of coverage) {
+                        let path = grid.get_field_relative(tile, dy * lines);
+                        if (path == '#') {
+                            // entire pyramid blocked
+                            return false;
+                        }
+                        // either [ or ]
+                        if (path == '[') {
+                            new_coverage.add(tile);
+                            new_coverage.add(tile + 1);
+                        }
+                        else if (path == ']') {
+                            new_coverage.add(tile);
+                            new_coverage.add(tile - 1);
+                        }
+                        else if (path != '.') {
+                            console.error(`unknown character ${path} found.`);
+                            return;
+                        }
+                    }
+                    if (new_coverage.size == 0) {
+                        // free path found
+                        break;
+                    }
+                    else {
+                        //console.log(`line: ${lines}, coverage: ${new_coverage.size}`);
+                        for (const tile of new_coverage) {
+                            total_cover.push([lines, tile]);
+                        }
+                    }
+                    coverage = new_coverage;
+                }
+                // now use the saved data to move the pyramid
+                total_cover.reverse();
+                for (const [line, tile] of total_cover) {
+                    grid.set_field_relative(tile, dy * (line + 1), grid.get_field_relative(tile, dy * line));
+                    grid.set_field_relative(tile, dy * line, '.');
+                }
+                console.assert(grid.move(0, dy));
+            }
+
+            async function run2() {
+                const [grid, instr] = read_data2();
+                document.getElementById("out2").innerHTML = grid.toString().replaceAll("\n", "<br>");
+                // make sure ~100 images are delivered to the screen
+                let counter = 0;
+                let max_instr = Math.ceil(instr.length / 100);
+                for (const c of instr) {
+                    if (counter >= max_instr) {
+                        await new Promise(requestAnimationFrame);
+                        counter = 0;
+                    }
+                    else {
+                        counter++;
+                    }
+                    move2(grid, c);
+                    document.getElementById("out2").innerHTML = grid.toString().replaceAll("\n", "<br>");
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                return grid;
+            }
+
+            function do2() {
+                run2().then((grid) => {
+                    console.log(grid.toString());
+                    let gps_sum = 0;
+                    for (const [x, y, c] of grid) {
+                        if (c == '[') {
+                            gps_sum += x + 100 * y;
+                        }
+                    }
+                    document.getElementById("out2").innerHTML = gps_sum.toString();
+                });
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 15</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
