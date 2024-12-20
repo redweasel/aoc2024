@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script src="graph.js"></script>
+        <script>
+            var directions = [[0, -1], [1, 0], [0, 1], [-1, 0]]
+            var directions_c = ['^', '>', 'v', '<'];
+            class Grid {
+                constructor(width, height, content_generator) {
+                    this.width = width;
+                    this.height = height;
+                    this.data = [];
+                    if (content_generator != null) {
+                        let gen = content_generator();
+                        for (let j = 0; j < height; j++) {
+                            let line = [];
+                            for (let i = 0; i < width; i++) {
+                                line.push(gen.next().value);
+                            }
+                            this.data.push(line);
+                        }
+                    } else {
+                        // trust the user to fill in the data.
+                    }
+                    // a cursor position for modifications.
+                    this.cursor = [0, 0, 0];
+                }
+
+                clone() {
+                    // structuredClone didn't quite work...
+                    // could not call functions on the result for some reason.
+                    const clone = new Grid(this.width, this.height, null);
+                    clone.data = structuredClone(this.data);
+                    clone.cursor = [...this.cursor];
+                    return clone;
+                }
+
+                set_cursor(x, y, direction) {
+                    this.cursor = [x, y, direction];
+                }
+
+                in_bounds(x, y) {
+                    return x >= 0 && y >= 0 && x < this.width && y < this.height;
+                }
+                get_field(x, y) {
+                    return this.data[y][x];
+                }
+                set_field(x, y, value) {
+                    this.data[y][x] = value;
+                }
+                get_field_cursor() {
+                    return this.data[this.cursor[1]][this.cursor[0]];
+                }
+                set_field_cursor(value) {
+                    this.data[this.cursor[1]][this.cursor[0]] = value;
+                }
+
+                get_field_relative(dx, dy) {
+                    let x = this.cursor[0] + dx;
+                    let y = this.cursor[1] + dy;
+                    if (0 <= x && x < this.width && 0 <= y && y < this.height) {
+                        return this.data[y][x];
+                    }
+                    return null;
+                }
+                get_field_cursor_ahead() {
+                    return this.get_field_relative(directions[this.cursor[2]][0], directions[this.cursor[2]][1]);
+                }
+
+                move(dx, dy) {
+                    // move the cursor if possible, otherwise return false
+                    let x = this.cursor[0] + dx;
+                    let y = this.cursor[1] + dy;
+                    if (0 <= x && x < this.width && 0 <= y && y < this.height) {
+                        this.cursor[0] = x;
+                        this.cursor[1] = y;
+                        return true;
+                    }
+                    return false;
+                }
+
+                move_ahead() {
+                    return this.move(directions[this.cursor[2]][0], directions[this.cursor[2]][1]);
+                }
+
+                turn(rot) {
+                    this.cursor[2] = ((this.cursor[2] + rot) % 4 + 4) % 4;
+                }
+
+                count(value) {
+                    let count = 0;
+                    for (const [x, y, c] of this) {
+                        if (c == value) {
+                            count++;
+                        }
+                    }
+                    return count;
+                }
+
+                find_all(value) {
+                    let pos = [];
+                    for (const [x, y, c] of this) {
+                        if (c == value) {
+                            pos.push([x, y]);
+                        }
+                    }
+                    return pos;
+                }
+
+                toString() {
+                    let str = "";
+                    if (this.data.length == 0) {
+                        return str;
+                    }
+                    for (const [y, line] of this.data.entries()) {
+                        for (const [x, c] of line.entries()) {
+                            if (this.cursor[1] == y && this.cursor[0] == x) {
+                                str += 'X';
+                            }
+                            else {
+                                str += c;
+                            }
+                        }
+                        str += "\n";
+                    }
+                    return str.substring(0, str.length - 1);
+                }
+
+                *[Symbol.iterator]() {
+                    for (const [y, line] of this.data.entries()) {
+                        for (const [x, c] of line.entries()) {
+                            yield [x, y, c];
+                        }
+                    }
+                }
+            }
+            
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                const lines = fileinput.trim().split("\n");
+                let grid = new Grid(lines[0].length, lines.length, function*() {
+                    for (const line of lines) {
+                        yield* line;
+                    }
+                });
+                let cursor = grid.find_all('S');
+                console.assert(cursor.length == 1, "more or less than a single start found");
+                grid.set_cursor(cursor[0][0], cursor[0][1], directions_c.indexOf('>'));
+                grid.set_field_cursor('.');
+                let end = grid.find_all('E');
+                console.assert(end.length == 1, "more or less than a single end found");
+                grid.set_field(end[0][0], end[0][1], '.');
+                let map = new Map();
+                for ([x, y, c] of grid) {
+                    if (c == '.') {
+                        for (let dir = 0; dir < 4; dir++) {
+                            const a = [x + directions[dir][0], y + directions[dir][1], dir].toString();
+                            const b = [x, y, (dir + 1) % 4].toString();
+                            const c = [x, y, (dir + 3) % 4].toString();
+                            //map.set([x, y, dir].toString(), {a:1, b:1000, c:1000}); // this doesn't work... it just parses a, b, c, as strings "a", "b", "c"
+                            map.set([x, y, dir].toString(), new Map([[a, 1], [b, 1000], [c, 1000]]));
+                        }
+                    }
+                }
+                return [grid, map, grid.cursor, end[0]];
+            }
+
+            function do1() {
+                const [_, map, start, end] = read_data();
+                // Dijkstra time!
+                // I could gamble and just solve for the path that has the fewest turns.
+                // however lets not do that.
+                // Each node in the Graph has a position and direction.
+                // Each node is connected to the forward position node and the two 90° turned nodes.
+
+                // Last year I wrote my own variations of Dijkstra in Rust.
+                // This year I have decided that using libraries is fine,
+                // however I have not yet used a library. This is the time to
+                // figure out how that works.
+                // Apparently you just copy the .js file into your project...
+                // using https://github.com/andrewhayward/dijkstra/blob/master/graph.js
+                // ...
+                // it didn't work?!? It just always returns null...
+                // I have to use Objects??? How are {} not Maps? js!!! `´
+                // --- started with 2 ---
+                // I decided to rewrite the library to Maps, so now it's Maps! :3
+
+                let graph = new Graph(map);
+                let min_length;
+                for (let dir = 0; dir < 4; dir++) {
+                    let end_key = [end[0], end[1], dir].toString();
+                    console.log(start.toString());
+                    console.log(end_key);
+                    const [steps, length] = graph.findShortestPath([start.toString(), end_key]);
+                    if (steps == null) {
+                        continue;
+                    }
+                    console.log(steps);
+                    if (min_length === undefined || length < min_length) {
+                        min_length = length;
+                    }
+                }
+                document.getElementById("out1").innerHTML = min_length === undefined ? "None" : min_length.toString();
+            }
+
+            function do2() {
+                const [grid, map, start, end] = read_data();
+                // does the library still help...?
+                // I think I need to take it apart for this.
+                // Any attempt to search all shortest paths by taking out edges,
+                // would be very slow, as the library is already struggling with the task 1.
+                // STRATEGY:
+                // Dijkstra actually finds all shortest paths.
+                // instead of findShortest, use the predecessors out of the library that I used
+                // Turns out that library is written in some old script that I don't understand yet.
+                // -> I rewrote the entire thing to use Map instead of Objects and to allow the usage of the internal functions.
+                // -> I also improved the algorithm from O(n^2) to almost* O(n log n) in complexity by adding binary search.
+                // 1075 is too high...
+
+                let graph = new Graph(map);
+                
+                let min_length;
+                let tiles;
+                // NOTE instead of running the search 4 times, I could also build the check for all 4 sides into extractShortest.
+                for (let dir = 0; dir < 4; dir++) {
+                    let end_key = [end[0], end[1], dir].toString();
+                    console.log(start.toString());
+                    console.log(end_key);
+                    let [predecessors, length] = graph.findPaths(start.toString(), end_key);
+                    if (predecessors == null) {
+                        continue;
+                    }
+                    if (min_length === undefined || length < min_length) {
+                        min_length = length;
+                        // now since I modified the library to compute all predecessors,
+                        // I can just flood fill the grid.
+                        let nodes = Graph.extractNodesOnShortestPaths(predecessors, [end_key])
+                        let grid_ = grid.clone();
+                        for (const node of nodes) {
+                            let [x, y, d] = node.split(',');
+                            grid_.set_field(Number(x), Number(y), 'O');
+                        }
+                        tiles = grid_.count('O');
+                        //console.log(grid_.toString());
+                    }
+                }
+                document.getElementById("out2").innerHTML = tiles === undefined ? "None" : tiles.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 16</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
