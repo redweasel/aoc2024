@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script src="../timer.js"></script>
+        <script>
+            function secret(x) {
+                function mix(a, b) {
+                    return Number(BigInt(a) ^ BigInt(b));
+                }
+                function prune(a) {
+                    return a % 16777216;
+                }
+                x = prune(mix(x * 64, x));
+                x = prune(mix(Math.floor(x / 32), x));
+                x = prune(mix(x * 2048, x));
+                return x;
+            }
+
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                return fileinput.trim().split("\n");
+            }
+            function do1() {
+                let init_numbers = read_data();
+                let sum = 0;
+                for (const num of init_numbers) {
+                    let new_secret = num;
+                    for (let i = 0; i < 2000; i++) {
+                        new_secret = secret(new_secret);
+                    }
+                    //console.log(new_secret);
+                    sum += new_secret;
+                }
+                document.getElementById("out1").innerHTML = sum.toString();
+            }
+
+            function test_secret_diff(init) {
+                let new_secret = secret(init);
+                let pattern = [new_secret % 10 - init % 10];
+                for (let i = 1; i < 20; i++) {
+                    let old_price = new_secret % 10;
+                    new_secret = secret(new_secret);
+                    let price = new_secret % 10;
+                    pattern.push(price - old_price);
+                    while (pattern.length > 4) {
+                        pattern.shift();
+                    }
+                    console.log(price, price - old_price, pattern.toString());
+                }
+            }
+
+            function do2() {
+                // the simplest solution is to just try all patterns, but that is very slow!
+                // ~1s * 7^4 = 40min just for the most likely patterns
+                // so instead, compute all prices first and save them.
+                // Then compute all changes and save them as well.
+                // Next setup a map with patterns and go through the offered
+                // prices, look at their pattern and sum that to in the map.
+                // while processing a buyer, one needs to keep track of the already used patterns.
+                // ... actually the saving in the beginning is unnecessary.
+                let init_numbers = read_data();
+                let map = new Map();
+                for (const num of init_numbers) {
+                    let new_secret = secret(num);
+                    let pattern = [new_secret % 10 - num % 10];
+                    let covered = new Set();
+                    for (let i = 1; i < 2000; i++) {
+                        let old_price = new_secret % 10;
+                        new_secret = secret(new_secret);
+                        let price = new_secret % 10;
+                        pattern.push(price - old_price);
+                        while (pattern.length > 4) {
+                            pattern.shift();
+                        }
+                        if (pattern.length == 4) {
+                            const key = pattern.toString();
+                            if (!covered.has(key)) {
+                                covered.add(key);
+                                map.set(key, (map.get(key) || 0) + price)
+                            }
+                        }
+                    }
+                }
+                let max_bananas = 0;
+                let best_pattern = null;
+                for (const [pattern, bananas] of map.entries()) {
+                    if (bananas > max_bananas) {
+                        best_pattern = pattern;
+                        max_bananas = bananas;
+                    }
+                }
+                console.log(best_pattern);
+                console.log(map.get("-2,1,-1,3"));
+                document.getElementById("out2").innerHTML = max_bananas.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 22</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="timed(do1,'time1')">
+            &#9656;
+        </button> Part 1 <input id="part1count" class="input_text" type="text" pattern="[0-9]" text="2" width="5pt"></h3>
+        
+        <p id="out1">...Output here...</p><p id="time1" class="time"></p>
+        <h3><button type="button" class="play" onclick="timed(do2,'time2')">
+            &#9656;
+        </button> Part 2 <input id="part2count" class="input_text" type="text" pattern="[0-9]" text="25" width="5pt"></h3>
+        <p id="out2">...Output here...</p><p id="time2" class="time"></p>
+    </body>
+</html>
