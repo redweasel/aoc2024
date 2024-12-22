@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            var directions = [[0, -1], [1, 0], [0, 1], [-1, 0]]
+            var directions_c = ['^', '>', 'v', '<'];
+            class Grid {
+                constructor(width, height, content_generator) {
+                    this.width = width;
+                    this.height = height;
+                    this.data = [];
+                    if (content_generator != null) {
+                        let gen = content_generator();
+                        for (let j = 0; j < height; j++) {
+                            let line = [];
+                            for (let i = 0; i < width; i++) {
+                                line.push(gen.next().value);
+                            }
+                            this.data.push(line);
+                        }
+                    } else {
+                        // trust the user to fill in the data.
+                    }
+                    // a cursor position for modifications.
+                    this.cursor = [0, 0];
+                }
+
+                clone() {
+                    // structuredClone didn't quite work...
+                    // could not call functions on the result for some reason.
+                    const clone = new Grid(this.width, this.height, null);
+                    clone.data = structuredClone(this.data);
+                    clone.cursor = [...this.cursor];
+                    return clone;
+                }
+
+                set_cursor(x, y) {
+                    this.cursor = [x, y];
+                }
+
+                in_bounds(x, y) {
+                    return x >= 0 && y >= 0 && x < this.width && y < this.height;
+                }
+                get_field(x, y) {
+                    return this.data[y][x];
+                }
+                set_field(x, y, value) {
+                    this.data[y][x] = value;
+                }
+                get_field_cursor() {
+                    return this.data[this.cursor[1]][this.cursor[0]];
+                }
+                set_field_cursor(value) {
+                    this.data[this.cursor[1]][this.cursor[0]] = value;
+                }
+
+                get_field_relative(dx, dy) {
+                    let x = this.cursor[0] + dx;
+                    let y = this.cursor[1] + dy;
+                    if (0 <= x && x < this.width && 0 <= y && y < this.height) {
+                        return this.data[y][x];
+                    }
+                    return null;
+                }
+                set_field_relative(dx, dy, value) {
+                    let x = this.cursor[0] + dx;
+                    let y = this.cursor[1] + dy;
+                    if (0 <= x && x < this.width && 0 <= y && y < this.height) {
+                        this.data[y][x] = value;
+                    }
+                }
+
+                move(dx, dy) {
+                    // move the cursor if possible, otherwise return false
+                    let x = this.cursor[0] + dx;
+                    let y = this.cursor[1] + dy;
+                    if (0 <= x && x < this.width && 0 <= y && y < this.height) {
+                        this.cursor[0] = x;
+                        this.cursor[1] = y;
+                        return true;
+                    }
+                    return false;
+                }
+
+                count(value) {
+                    let count = 0;
+                    for (const [x, y, c] of this) {
+                        if (c == value) {
+                            count++;
+                        }
+                    }
+                    return count;
+                }
+
+                find_all(value) {
+                    let pos = [];
+                    for (const [x, y, c] of this) {
+                        if (c == value) {
+                            pos.push([x, y]);
+                        }
+                    }
+                    return pos;
+                }
+
+                toString() {
+                    let str = "";
+                    if (this.data.length == 0) {
+                        return str;
+                    }
+                    for (const [y, line] of this.data.entries()) {
+                        for (const [x, c] of line.entries()) {
+                            if (this.cursor[1] == y && this.cursor[0] == x) {
+                                str += 'X';
+                            }
+                            else {
+                                str += c;
+                            }
+                        }
+                        str += "\n";
+                    }
+                    return str.substring(0, str.length - 1);
+                }
+
+                *[Symbol.iterator]() {
+                    for (const [y, line] of this.data.entries()) {
+                        for (const [x, c] of line.entries()) {
+                            yield [x, y, c];
+                        }
+                    }
+                }
+            }
+            
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                const lines = fileinput.split("\n");
+                let grid = new Grid(lines[0].length, lines.length, function*() {
+                    for (const line of lines) {
+                        yield* line;
+                    }
+                });
+                let cursor = grid.find_all('S');
+                console.assert(cursor.length == 1, "more or less than a single start found");
+                grid.set_cursor(cursor[0][0], cursor[0][1]);
+                grid.set_field_cursor('.');
+                let end = grid.find_all('E');
+                console.assert(end.length == 1, "more or less than a single end found");
+                grid.set_field(end[0][0], end[0][1], '.');
+                return [grid, end];
+            }
+
+            function race(grid, start, end) {
+                // assume there is only one path and race down it.
+                // return the positions of all the tiles on the path.
+                let path = [];
+                let shortcuts = [];
+                grid.set_cursor(start[0], start[1]);
+                while(true) {
+                    path.push(grid.cursor.toString());
+                    grid.set_field_cursor(','); // covered track
+                    let found_next;
+                    for (const dir of directions) {
+                        if (!found_next && grid.get_field_relative(dir[0], dir[1]) == '.') {
+                            found_next = dir;
+                        }
+                        else if (grid.get_field_relative(dir[0]*2, dir[1]*2) == '.') {
+                            // found shortcut!
+                            shortcuts.push([grid.cursor.toString(), [grid.cursor[0] + dir[0]*2, grid.cursor[1] + dir[1]*2].toString()]);
+                        }
+                    }
+                    if (found_next !== undefined) {
+                        grid.move(found_next[0], found_next[1]);
+                    }
+                    else {
+                        path.push(grid.cursor.toString());
+                        break;
+                    }
+                }
+                console.assert(path[path.length - 1] == end.toString());
+                return [path, shortcuts];
+            }
+
+            function do1() {
+                // grids and Dijkstra again
+                // actually not Dijkstra, but a single path with some specific listable shortcuts.
+                // maybe it will be Dijkstra for the second part?
+                const [grid, end] = read_data();
+                const [path, shortcuts] = race(grid, grid.cursor, end);
+                let count = 0;
+                let hist = new Map();
+                for (const shortcut of shortcuts) {
+                    // compute the saving of the shortcut by finding the start and end in path
+                    let saving = path.indexOf(shortcut[1]) - path.indexOf(shortcut[0]) - 2;
+                    hist.set(saving, (hist.get(saving) + 1) || 1);
+                    if (saving >= 100) {
+                        count += 1;
+                    }
+                }
+                console.log(hist);
+                document.getElementById("out1").innerHTML = count.toString();
+            }
+
+            function race2(grid, start, end) {
+                // assume there is only one path and race down it.
+                // return the positions of all the tiles on the path.
+                let path = [];
+                let shortcuts = [];
+                grid.set_cursor(start[0], start[1]);
+                while(true) {
+                    path.push(grid.cursor.toString());
+                    grid.set_field_cursor(','); // covered track
+                    let found_next;
+                    for (const dir of directions) {
+                        if (!found_next && grid.get_field_relative(dir[0], dir[1]) == '.') {
+                            found_next = dir;
+                        }
+                    }
+                    // now try to find cheats
+                    // for simplicity I will also allow cheats, which don't shorten the path.
+                    // search by checking the diamond of spots that are reachable in 20 steps.
+                    // return every shortcut that is found! (a lot of memory potentially...)
+                    for (let x = -20; x <= 20; x++) {
+                        for (let y = -20; y <= 20; y++) {
+                            let cost = Math.abs(x) + Math.abs(y);
+                            if (cost <= 20 && grid.get_field_relative(x, y) == '.') {
+                                // possible cheat
+                                shortcuts.push([
+                                    grid.cursor.toString(),
+                                    [grid.cursor[0] + x, grid.cursor[1] + y].toString(),
+                                    cost
+                                ]);
+                            }
+                        }
+                    }
+                    if (found_next !== undefined) {
+                        grid.move(found_next[0], found_next[1]);
+                    }
+                    else {
+                        path.push(grid.cursor.toString());
+                        break;
+                    }
+                }
+                console.assert(path[path.length - 1] == end.toString());
+                return [path, shortcuts];
+            }
+
+            function do2() {
+                // ok this got a whole lot more complicated...
+                // I mean it's still the same thing, but lets see if it will be performant enough for a solution...
+                const [grid, end] = read_data();
+                const [path, shortcuts] = race2(grid, grid.cursor, end);
+                console.log("race done");
+                let count = 0;
+                let hist = new Map();
+                // make a map for the path lookup for performance
+                const path_map = new Map(Array.from(path.entries()).map(x => [x[1], x[0]]));
+                for (const shortcut of shortcuts) {
+                    // compute the saving of the shortcut by finding the start and end in path
+                    let saving = path_map.get(shortcut[1]) - path_map.get(shortcut[0]) - shortcut[2];
+                    hist.set(saving, (hist.get(saving) + 1) || 1);
+                    if (saving >= 100) {
+                        count += 1;
+                    }
+                }
+                console.log(hist);
+                document.getElementById("out2").innerHTML = count.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 20</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
