@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script src="graph.js"></script>
+        <script>
+            var directions = [[0, -1], [1, 0], [0, 1], [-1, 0]]
+            var directions_c = ['^', '>', 'v', '<'];
+
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                return fileinput.trim().split("\n");
+            }
+
+            function next_state_numpad(state, input) {
+                const layout = "789456123 0A";
+                let dir = directions_c.indexOf(input);
+                if (dir == -1) {
+                    return state; // no statechange, just accept
+                }
+                let i = layout.indexOf(state);
+                let [x, y] = directions[dir];
+                if (Math.floor((i + x) / 3) != Math.floor(i / 3))
+                    return null;
+                let new_y = Math.floor(i / 3) + y;
+                if (new_y < 0 || new_y >= 4)
+                    return null;
+                let new_state = layout[i + x + y * 3];
+                if (new_state == " ")
+                    return null;
+                return new_state;
+            }
+
+            function next_state_dirpad(state, input) {
+                const layout = " ^A<v>";
+                let dir = directions_c.indexOf(input);
+                if (dir == -1) {
+                    return state; // no statechange, just accept
+                }
+                let i = layout.indexOf(state);
+                let [x, y] = directions[dir];
+                if (Math.floor((i + x) / 3) != Math.floor(i / 3))
+                    return null;
+                let new_y = Math.floor(i / 3) + y;
+                if (new_y < 0 || new_y >= 2)
+                    return null;
+                let new_state = layout[i + x + y * 3];
+                if (new_state == " ")
+                    return null;
+                return new_state;
+            }
+
+            function next_state(state, input, use_numpad) {
+                let parts = state.split(",");
+                for (let i = 0; i < parts.length; i++) {
+                    let input_part = i > 0 ? parts[i-1] : input;
+                    let old_p = parts[i];
+                    if (i == parts.length - 1)
+                        parts[i] = old_p + input_part;
+                    else if (use_numpad && i == parts.length - 2)
+                        parts[i] = next_state_numpad(old_p, input_part);
+                    else
+                        parts[i] = next_state_dirpad(old_p, input_part);
+                    if (parts[i] == null)
+                        return null;
+                    if (old_p != parts[i])
+                        break;
+                }
+                return parts.toString();
+            }
+
+            function flood_fill(codes, start, use_numpad) {
+                let states = new Map([[start, ""]]);
+                let wavefront = new Map(states.entries());
+                let optimal_seqs = codes.map(x => null);
+                let progress = codes.map(x => 0);
+                for (let n = 0; n < 200000; n++) {
+                    const new_wavefront = new Map();
+                    for (const input of ["<", "^", "v", ">", "A"]) {
+                        for (const [current, seq] of wavefront.entries()) {
+                            // progress the wavefront by adding the input and computing the new state.
+                            const next = next_state(current, input, use_numpad);
+                            if (next == null)
+                                continue;
+                            let parts = next.split(",");
+                            const text = parts[parts.length - 1];
+                            // keep track of codes progress
+                            let ok = false;
+                            for (let i = 0; i < codes.length; i++) {
+                                if (codes[i].startsWith(text)) {
+                                    // TODO this condition isn't necessarily correct...
+                                    if (text.length >= progress[i]) {
+                                        ok = true;
+                                    }
+                                    if (text.length >= progress[i]) {
+                                        progress[i] = text.length;
+                                    }
+                                }
+                            }
+                            // if this new state is lacking behind on all of the codes, it won't get added.
+                            if (ok && !states.has(next)) {
+                                // new state reached!
+                                let new_seq = seq + input;
+                                new_wavefront.set(next, new_seq);
+                                states.set(next, new_seq);
+                                const code_i = codes.indexOf(text);
+                                if (code_i >= 0 && optimal_seqs[code_i] == null) {
+                                    optimal_seqs[code_i] = new_seq;
+                                    // early return
+                                    if (!optimal_seqs.includes(null)) {
+                                        return optimal_seqs;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    wavefront = new_wavefront;
+                }
+                return optimal_seqs;
+            }
+
+            function test_seq(seq) {
+                let state = "A,A,A,"
+                for (const input of seq) {
+                    state = next_state(state, input);
+                    //console.log(state)
+                    if (state == null)
+                        return state;
+                }
+                return state;
+            }
+
+            function compute_complexity(codes, seq_lengths) {
+                let sum = 0;
+                for (let i = 0; i < codes.length; i++) {
+                    let seq = seq_lengths[i];
+                    let code = codes[i];
+                    let code_num = Number(code.substring(0, code.length - 1));
+                    console.log(seq, code_num);
+                    sum += seq * code_num;
+                }
+                return sum;
+            }
+
+            function do1() {
+                // hmmm, seems like a standard task.
+                // It's tempting to use DFS with memoisation again,
+                // but I guess Dijkstra would also work, as this is a shortest path problem.
+                // When formulating it as a shortest path problem, the nodes would be
+                // [state keypad 1, state keypad 2, state keypad 3, typed string]
+                // that makes it clear, that pure shortest path Dijkstra is not what I need.
+                // instead I need to do that, but find the first occurence of the desired typed string.
+                // since all weights are 1, this is just flood fill, which can be implemented much simpler.
+                // ...
+                // so I thought until I realized the graph is exponential!
+                // the flood fill will have to be seriously cut down!
+                let codes = read_data();
+                let start = "A,".repeat(1 + Number(document.getElementById("part1count").value));
+                let seqs = flood_fill(codes, start, true);
+                console.log(seqs);
+                let sum = compute_complexity(codes, seqs.map(x => x.length));
+                document.getElementById("out1").innerHTML = sum.toString();
+            }
+
+            function flood(start, end) {
+                let states = new Map([[start, ""]]);
+                let wavefront = new Map(states.entries());
+                for (let n = 0; n < 20; n++) {
+                    const new_wavefront = new Map();
+                    for (const input of ["<", "^", "v", ">", "A"]) {
+                        for (const [current, seq] of wavefront.entries()) {
+                            // progress the wavefront by adding the input and computing the new state.
+                            const next = next_state(current, input, false);
+                            if (next == null)
+                                continue;
+                            if (states.has(next))
+                                continue;
+                            // new state reached!
+                            let new_seq = seq + input;
+                            new_wavefront.set(next, new_seq);
+                            states.set(next, new_seq);
+                            if (next == end) {
+                                // finished, got a full sequence
+                                return new_seq;
+                            }
+                        }
+                    }
+                    wavefront = new_wavefront;
+                }
+                return Infinity;
+            }
+
+            var cost_memo = new Map();
+            // step cost for going from A,..,A,start, to A,..,A,end, with "level" times A.
+            function cost(start, end, level, numpad) {
+                if (start == end) {
+                    return 0;
+                }
+                const key = start + ":" + end + ":" + level;
+                if (cost_memo.has(key)) {
+                    return cost_memo.get(key);
+                }
+                if (level <= 1) {
+                    // solve using my flood filler
+                    // HACK: assuming there is at least a couple dirpads.
+                    console.assert(!numpad);
+                    let lvl_str = "A,".repeat(level);
+                    total_cost = flood(lvl_str + start + ",", lvl_str + end + ",").length;
+                }
+                else {
+                    // now start the more complex cost computation
+                    // compute the costs of the grid and do Dijkstra using the lib
+                    // note the costs are 1 for ahead and cost(a, b) for turning.
+                    // -> the Dijkstra state contains the current direction as well.
+                    let map = new Map();
+                    for (const state of (numpad ? "0123456789A" : "<v>^A")) {
+                        for (const current of ["<", "^", "v", ">", "A"]) {
+                            let state_map = new Map();
+                            map.set(current + "," + state, state_map);
+                            for (const input of ["<", "^", "v", ">", "A"]) {
+                                let nstate = next_state(state + ",", input, numpad);
+                                if (nstate == null)
+                                    continue;
+                                nstate = nstate.substring(0, 1);
+                                // these are all the possible next states and their costs
+                                state_map.set(input + "," + nstate, 1 + cost(current, input, level - 1, false));
+                            }
+                        }
+                    }
+                    //console.log(map);
+
+                    let [path, length] = new Graph(map).findShortestPath(["A," + start, "A," + end]);
+                    console.assert(length >= 0);
+                    total_cost = length - 1;
+                }
+                cost_memo.set(key, total_cost);
+                return total_cost;
+            }
+
+            function do2() {
+                // Quick math to check if this is feasible with the current approach:
+                // Say each dirpad needs on avg 2 moves to get to the next key it needs to press.
+                // Then a single press of the numpad requires ~2^n moves where n is the number of keypads.
+                // -> nope not feasable.
+                // solution is to find shortest sequences for shorter problems and reuse them.
+                // -> just use the counts, not the actual strings.
+                // -> should have gone with memoized dfs...
+                // plan:
+                // use dfs now and don't actually compute the sequence, just its length
+                // note that the typing of each character starts with "A,A,c," where c is the last typed character.
+                // each typeing of character g from state "A,A,c," can be computed independently.
+                // more of these ideas:
+                // the cost of moving from A,x,x, to >,x,x, is 1
+                // the cost of moving from A,A,x, to v,>,x, is 3
+                // the x's here indicate unchanged parts of the state.
+                // the cost of more complicated state changes can be computed from a combination of simpler ones.
+                // or can it?
+                // moving from A,A,A, to A,A,>, can go
+                // A,A,^, -> v,>,A, -> <,v,>, -> A,A,>, (cost 24)
+                // or
+                // A,A,^, -> <,v,v, -> v,>,>, -> A,A,>, (cost 22)
+                // note, for one layer to commit to the next, one needs A
+                // so the relevant steps are
+                // A,A,^, -> v,>,^, -> A,>,A, -> ... -> A,A,A,
+                //        v<A       >^A      ...    ...
+                // the fact that these intermediates are fixed as A,A,x,*,...
+                // means there is no strategy in choosing intermediates!
+                // the path is something like >>v which needs
+                // to be turned into intermediates for recursion in cost.
+                // The intermediates are fixed though!
+                // A,..,A,A,start, -> A,..,A,>,x, -> A,..,A,>,x, -> A,..,A,v,end, -> A,..,A,A,end,
+                // that also means that the cost will only be computed from A,..,A,x, -> A,..,A,y,
+                // which is exactly what my solution in part 1 did!
+                // however now we are left in state  A,..,A,v,0, and need to go to A,..,A,A,0, for the next part.
+                let codes = read_data();
+                let seqs = [];
+                let dirpads = Number(document.getElementById("part2count").value);
+                for (const code of codes) {
+                    let len = cost("A", code[0], dirpads, true) + 1;
+                    for (let i = 1; i < code.length; i++) {
+                        len += cost(code[i-1], code[i], dirpads, true) + 1;
+                    }
+                    seqs.push(len);
+                }
+                let sum = compute_complexity(codes, seqs);
+                document.getElementById("out2").innerHTML = sum.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 21</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1 <input id="part1count" class="input_text" type="text" pattern="[0-9]" text="2" width="5pt"></h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2 <input id="part2count" class="input_text" type="text" pattern="[0-9]" text="25" width="5pt"></h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>

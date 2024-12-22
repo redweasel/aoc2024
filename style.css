@@ -19,6 +19,13 @@ textarea {
     max-width: 100%;
 }
 
+.input_text {
+    background-color: black;
+    color: lightgreen;
+    border: solid green 2px;
+    width: 20pt;
+}
+
 button {
     background-color: lightyellow;
     color: black;
