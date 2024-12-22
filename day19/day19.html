@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                const [available, desired] = fileinput.trim().split("\n\n");
+                const available_list = available.split(", ");
+                const desired_list = desired.split("\n");
+                return [available_list, desired_list];
+            }
+
+            var memo;
+            function match(str, patterns) {
+                if (str.length == 0) {
+                    return true;
+                }
+                if (memo.has(str)) {
+                    return memo.get(str);
+                }
+                for (const p of patterns) {
+                    if (str.startsWith(p)) {
+                        if (match(str.substring(p.length), patterns)) {
+                            memo.set(str, true);
+                            return true;
+                        }
+                    }
+                }
+                memo.set(str, false);
+                return false;
+            }
+
+            function do1() {
+                const [available, desired] = read_data();
+                let possible = 0;
+                memo = new Map();
+                for (const str of desired) {
+                    // I would love to use /(p1|p2|p3|...)+/ but that
+                    // will always match the first available pattern.
+                    // What I need is to do a depth first search (DFS) to find a matching pattern.
+                    // that was trivial to program, however it's slow...
+                    // with an increasing amount of patterns, it becomes slower and slower...
+                    // my solution is to memoize it as usual.
+                    // surprisingly that made the solution instant!
+                    // I mean.. UNsurprisingly, because it was reparsing the same strings all the time.
+                    possible += match(str, available);
+                }
+                document.getElementById("out1").innerHTML = possible.toString();
+            }
+
+            var memo2;
+            function match2(str, patterns) {
+                if (str.length == 0) {
+                    return 1;
+                }
+                if (memo2.has(str)) {
+                    return memo2.get(str);
+                }
+                let possible = 0;
+                for (const p of patterns) {
+                    if (str.startsWith(p)) {
+                        possible += match2(str.substring(p.length), patterns);
+                    }
+                }
+                memo2.set(str, possible);
+                return possible;
+            }
+
+            function do2() {
+                const [available, desired] = read_data();
+                let possible = 0;
+                memo2 = new Map();
+                for (const str of desired) {
+                    // easy enough modification
+                    possible += match2(str, available);
+                }
+                document.getElementById("out2").innerHTML = possible.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 19</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
