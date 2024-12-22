@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <link rel="stylesheet" href="../style.css">
+        <link rel="stylesheet" href="../style.css"><script src="../timer.js"></script>
         <script>
             function read_table(text) {
                 const lines = text.split("\n");
@@ -79,14 +79,14 @@
         <textarea rows="8" id="in1" name="in1"></textarea></br>
         </br>
         <h3>Part 1</h3>
-        <button type="button" onclick="do1()">
+        <button type="button" onclick="timed(do1,'time1')">
             Go
         </button>
-        <p id="out1">...Output here...</p>
+        <p id="out1">...Output here...</p><p id="time1" class="time"></p>
         <h3>Part 2</h3>
-        <button type="button" onclick="do2()">
+        <button type="button" onclick="timed(do2,'time2')">
             Go
         </button>
-        <p id="out2">...Output here...</p>
+        <p id="out2">...Output here...</p><p id="time2" class="time"></p>
     </body>
 </html>

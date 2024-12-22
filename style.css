@@ -26,6 +26,10 @@ textarea {
     width: 20pt;
 }
 
+.time {
+    color: #880;
+}
+
 button {
     background-color: lightyellow;
     color: black;

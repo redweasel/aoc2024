@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <link rel="stylesheet" href="../style.css">
+        <link rel="stylesheet" href="../style.css"><script src="../timer.js"></script>
         <script>
             function read_data() {
                 const fileinput = document.getElementById("in1").value;
@@ -83,14 +83,14 @@
         <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 5</h2>
         <textarea rows="8" id="in1" name="in1"></textarea></br>
         </br>
-        <h3><button type="button" class="play" onclick="do1()">
+        <h3><button type="button" class="play" onclick="timed(do1,'time1')">
             &#9656;
         </button> Part 1</h3>
         
-        <p id="out1">...Output here...</p>
-        <h3><button type="button" class="play" onclick="do2()">
+        <p id="out1">...Output here...</p><p id="time1" class="time"></p>
+        <h3><button type="button" class="play" onclick="timed(do2,'time2')">
             &#9656;
         </button> Part 2</h3>
-        <p id="out2">...Output here...</p>
+        <p id="out2">...Output here...</p><p id="time2" class="time"></p>
     </body>
 </html>
