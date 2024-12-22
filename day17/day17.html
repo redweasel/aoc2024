@@ -70,8 +70,6 @@
                         case 0: // adv
                             assert(operand != 4); // otherwise it gets difficult
                             let shift = this.combo(operand);
-                            // this can be quite a lot...
-                            // this makes it rather useless in my case... :(
                             for (let i = 0; i < (1 << shift); i++) {
                                 prev.push(new Computer(this.memory, [(this.registers[0] << shift) | i, this.registers[1], this.registers[2]], this.instr_ptr));
                             }
@@ -99,14 +97,11 @@
                         case 5: // out
                             let out = out_list.pop();
                             if (operand < 4) {
-                                assert(operand == out);
+                                if (operand != out)
+                                    return false;
                             }
-                            else {
-                                //assert(operand != 4); // otherwise it gets difficult
-                                // any loop will leave a = 0 at the end of the program
-                                // therefore this is possible:
-                                this.registers[operand - 4] &= ~7; // not sure what ~7 really is in Javascript or how it works... but it appears to work.
-                                this.registers[operand - 4] |= out;
+                            else if (this.registers[operand - 4] & 7 != out) {
+                                return false;
                             }
                             break;
                         default: // 6: bdv, 7: cdv
@@ -161,6 +156,9 @@
                 let out_list_length = out_list.length;
                 while (true) {
                     let out = computer.untick(out_list);
+                    if (out === false) {
+                        return null;
+                    }
                     if (out_list.length == 0 && computer.instr_ptr == 0) {
                         if (out === undefined) {
                             // test if the computer actually produces out_str
@@ -205,7 +203,7 @@
                     for (const prev of out) {
                         let res = unclock(prev, out_list, out_str, max_depth - 1);
                         if (res != null)
-                            return res;
+                            return res; // abort on the first found solution
                     }
                     return null;
                 }
@@ -323,7 +321,7 @@
                 // B can always be set to 0 as end value for the programm I got
                 let a = Infinity;
                 // -------------- simplified for testing: ------------
-                let out_list = progs.slice(0, 2);
+                let out_list = progs.slice(0, 3);
                 let out_str = out_list.reduce((a, b) => a + "" + b);
                 for (let c = 0; c < 8; c++) {
                     let computer = new Computer(progs, [0, 0, c], progs.length);
@@ -331,6 +329,7 @@
                     if (res_a != null) {
                         console.log("found a solution:", res_a);
                         a = Math.min(res_a, a);
+                        break; // one solution is enough.
                     }
                 }
                 //let computer = new Computer(progs, [0, 0, 0], progs.length);

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script src="graph.js"></script>
+        <script>
+            function read_data(n) {
+                const fileinput = document.getElementById("in1").value;
+                const lines = fileinput.trim().split("\n");
+                const positions = lines;//.map(l => l.split(",").map(x => Number(x)));
+                let map = new Map();
+                for (let x = 0; x <= n; x++) {
+                    for (let y = 0; y <= n; y++) {
+                        const a = [x + 1, y].toString();
+                        const b = [x - 1, y].toString();
+                        const c = [x, y + 1].toString();
+                        const d = [x, y - 1].toString();
+                        map.set([x, y].toString(), new Map([[a, 1], [b, 1], [c, 1], [d, 1]]));
+                    }
+                }
+                return [map, positions];
+            }
+
+            function do1() {
+                let n = 70; // 6;
+                let first_n = 1024; // 12;
+                const [map, positions] = read_data(n);
+                // Back to grids and Dijkstra again! (see day 16)
+                // remove the first kb from the paths
+                for (const pos of positions.slice(0, first_n)) {
+                    map.delete(pos);
+                }
+                let graph = new Graph(map);
+                let start_key = [0, 0].toString();
+                let end_key = [n, n].toString();
+                const [steps, length] = graph.findShortestPath([start_key, end_key]);
+                console.log(steps);
+                document.getElementById("out1").innerHTML = length < 0 ? "None" : length.toString();
+            }
+
+            function do2() {
+                // I'm feeling really lazy today, so I'm thinking how to hack this.
+                // I'm not sure what the most efficient way to solve this is.
+                // finding a path like in part 1, waiting for it to be broken
+                // and then finding a new path is certainly not bad though.
+                // Better than doing a flood fill for every added byte to check connectedness.
+                let n = 70;
+                const [map, positions] = read_data(n);
+                // Back to grids and Dijkstra again! (see day 16)
+                // remove the first kb from the paths
+                const start_key = [0, 0].toString();
+                const end_key = [n, n].toString();
+                const path = [start_key, end_key];
+                let [steps, length] = new Graph(map).findShortestPath(path);
+                while (positions.length) {
+                    let tile = positions.shift();
+                    map.delete(tile);
+                    if (steps.includes(tile)) {
+                        [steps, length] = new Graph(map).findShortestPath(path);
+                        //console.log(steps);
+                        if (steps === null) {
+                            document.getElementById("out2").innerHTML = tile;
+                            return;
+                        }
+                    }
+                }
+                document.getElementById("out2").innerHTML = "completed";
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 18</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+    </body>
+</html>
