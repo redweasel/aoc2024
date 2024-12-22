@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script>
+            // why is this not included in JS itself?
+            var assert=(c,m)=>{if(!c){throw new Error(m||"Assertion failed")}};
+
+            class Computer {
+                constructor(memory, registers) {
+                    // init my cute little computer :3
+                    this.instr_ptr = arguments[2] !== undefined ? arguments[2] : 0;
+                    this.memory = memory;
+                    assert(registers.length == 3);
+                    this.registers = registers;
+                }
+
+                combo(operand) {
+                    if (operand < 4) {
+                        return operand;
+                    }
+                    return this.registers[operand - 4];
+                }
+
+                tick() {
+                    let instr = this.memory[this.instr_ptr];
+                    let operand = this.memory[this.instr_ptr + 1];
+                    if (instr === undefined) return "halt";
+                    switch (instr) {
+                        case 0: // adv
+                            this.registers[0] >>= this.combo(operand);
+                            break;
+                        case 1: // bxl
+                            this.registers[1] ^= operand;
+                            break;
+                        case 2: // bst
+                            this.registers[1] = this.combo(operand) & 7;
+                            break;
+                        case 3: // jnz
+                            if (this.registers[0]) {
+                                this.instr_ptr = operand;
+                                return;
+                            }
+                            break;
+                        case 4: // bxc
+                            this.registers[1] ^= this.registers[2];
+                            break;
+                        case 5: // out
+                            this.instr_ptr += 2;
+                            return this.combo(operand) & 7;
+                        default: // 6: bdv, 7: cdv
+                            this.registers[instr - 5] = this.registers[0] >> this.combo(operand);
+                    }
+                    this.instr_ptr += 2;
+                }
+
+                untick(out_list) {
+                    this.instr_ptr -= 2;
+                    // HACK for my particular program:
+                    // there is only a jump from the last instruction to 0
+                    let jump = false;
+                    if (this.instr_ptr < 0) {
+                        this.instr_ptr = this.memory.length - 2;
+                        jump = true;
+                    }
+                    let instr = this.memory[this.instr_ptr];
+                    let operand = this.memory[this.instr_ptr + 1];
+                    let prev = [];
+                    switch (instr) {
+                        case 0: // adv
+                            assert(operand != 4); // otherwise it gets difficult
+                            let shift = this.combo(operand);
+                            // this can be quite a lot...
+                            // this makes it rather useless in my case... :(
+                            for (let i = 0; i < (1 << shift); i++) {
+                                prev.push(new Computer(this.memory, [(this.registers[0] << shift) | i, this.registers[1], this.registers[2]], this.instr_ptr));
+                            }
+                            return prev;
+                        case 1: // bxl
+                            this.registers[1] ^= operand;
+                            break;
+                        case 2: // bst
+                            // HACK: restrict previous value to the octal range.
+                            for (let i = 0; i < 8; i++) {
+                                prev.push(new Computer(this.memory, [this.registers[0], i, this.registers[2]], this.instr_ptr));
+                            }
+                            return prev;
+                        case 3: // jnz
+                            if (jump) {
+                                // the value of the register stays unchanged
+                            }
+                            else {
+                                this.registers[0] = 0;
+                            }
+                            break;
+                        case 4: // bxc
+                            this.registers[1] ^= this.registers[2];
+                            break;
+                        case 5: // out
+                            let out = out_list.pop();
+                            if (operand < 4) {
+                                assert(operand == out);
+                            }
+                            else {
+                                //assert(operand != 4); // otherwise it gets difficult
+                                // any loop will leave a = 0 at the end of the program
+                                // therefore this is possible:
+                                this.registers[operand - 4] &= ~7; // not sure what ~7 really is in Javascript or how it works... but it appears to work.
+                                this.registers[operand - 4] |= out;
+                            }
+                            break;
+                        default: // 6: bdv, 7: cdv
+                            assert(operand != 4); // otherwise it gets difficult, as A could be >= 8
+                            assert(operand != instr - 1); // otherwise we can infer more and don't want to waste that opportunity.
+                            // HACK assume the overriden value was octal
+                            for (let i = 0; i < 8; i++) {
+                                let regs = [...this.registers];
+                                regs[instr - 5] = i;
+                                prev.push(new Computer(this.memory, regs, this.instr_ptr));
+                            }
+                            return prev;
+                    }
+                }
+                toString() {
+                    return "[" + this.instr_ptr + "|" + this.registers.toString() + "]";
+                }
+            }
+
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                const [registers, programm] = fileinput.trim().split("\n\n");
+                const regs = registers.split("\n").map(p => Number(p.substring(12).trim()))
+                const progs = programm.substring(9).split(",").map(p => Number(p));
+                return [regs, progs];
+            }
+
+            async function clock(computer) {
+                while (true) {
+                    let out = computer.tick();
+                    if (out == "halt") {
+                        break;
+                    }
+                    if (out !== undefined) {
+                        let elem = document.getElementById("out1");
+                        if (elem.innerHTML.length > 0) {
+                            elem.innerHTML += ",";
+                        }
+                        elem.innerHTML += out;
+                    }
+                    await new Promise(requestAnimationFrame);
+                }
+            }
+
+            var msg_sent = 0;
+            var checked_and_invalid;
+            function unclock(computer, out_list, out_str, max_depth) {
+                if (out_list.length == out_str.length) {
+                    checked_and_invalid = new Set();
+                }
+                out_list = Array.from(out_list);
+                let out_list_length = out_list.length;
+                while (true) {
+                    let out = computer.untick(out_list);
+                    if (out_list.length == 0 && computer.instr_ptr == 0) {
+                        if (out === undefined) {
+                            // test if the computer actually produces out_str
+                            // it might not, if some choices were bad.
+                            if (!checked_and_invalid.has(computer.registers[0])) {
+                                if (check_computer_output(computer.memory, [...computer.registers], out_str)) {
+                                    return computer.registers[0];
+                                }
+                                else {
+                                    if (msg_sent++ < 1000)
+                                        console.log(computer.registers[0]);
+                                    checked_and_invalid.add(computer.registers[0]);
+                                }
+                            }
+                        }
+                        else {
+                            for (const prev of out) {
+                                if (!checked_and_invalid.has(computer.registers[0])) {
+                                    if (check_computer_output(prev.memory, [...prev.registers], out_str)) {
+                                        return prev.registers[0];
+                                    }
+                                    else {
+                                        if (msg_sent++ < 1000)
+                                            console.log(prev.registers[0]);
+                                        checked_and_invalid.add(computer.registers[0]);
+                                    }
+                                }
+                            }
+                        }
+                        return null;
+                    }
+                    if (out === undefined) {
+                        continue;
+                    }
+                    if (out_list_length != out_list.length) {
+                        max_depth = 3; // allow n branches inbetween outputs
+                    }
+                    else if (max_depth == 0) {
+                        return null;
+                    }
+                    // more than one possible previous state
+                    for (const prev of out) {
+                        let res = unclock(prev, out_list, out_str, max_depth - 1);
+                        if (res != null)
+                            return res;
+                    }
+                    return null;
+                }
+            }
+
+            function do1() {
+                const [regs, progs] = read_data();
+                console.log(regs);
+                console.log(progs);
+                let computer = new Computer(progs, regs);
+                document.getElementById("out1").innerHTML = "";
+                clock(computer).then(() => {});
+            }
+
+            function check_computer_output(progs, regs, desired_output) {
+                let output = "";
+                let computer = new Computer(progs, regs);
+                while (true) {
+                    let out = computer.tick();
+                    if (out == "halt") {
+                        break;
+                    }
+                    if (out !== undefined) {
+                        output += out;
+                        if (!desired_output.startsWith(output)) {
+                            break;
+                        }
+                        else if (desired_output == output) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            function do2_naive() {
+                // to solve this, either use math, or just try all inputs.
+                // since the programm *should* be generic (as in I should not read it before coding this)
+                // I will just try all inputs one by one.
+                // ...
+                // no success until 851000000...
+                // ...
+                // ok, then I will look at the programm myself and decypher what is going on.
+                // Register A: 17323786
+                // Register B: 0
+                // Register C: 0
+                //
+                // Program: 2,4,1,1,7,5,1,5,4,1,5,5,0,3,3,0
+                //
+                // translates to
+                // bst A
+                // bxl 1
+                // cdv 2^B
+                // bxl 5
+                // bxc (1)
+                // out B
+                // adv 2^3
+                // jnz 0
+                //
+                // which translates to
+                // let A = ...;
+                // do {
+                //   let B = A & 7;
+                //   B ^= 1;
+                //   let C = A >> B;
+                //   B ^= 5;
+                //   B ^= C;
+                //   console.log(B)
+                //   A >>= 3;
+                // } while (A);
+                // 
+                // so A is consumed in amounts of 3 bits
+                // -> A needs to be 16*3 bits long = 48 bits (way too much to brute force)
+                // then it (a = A & 7) gets processed to
+                // out = ((a ^ 1) ^ 5) ^ (A >> (a ^ 1))
+                //     = a ^ 4 ^ (A >> (a ^ 1))
+                // now note
+                // All operations here are xor, so they are reversible.
+                // To get A, do:
+                // out ^ 4 = a ^ (A >> (a ^ 1))
+                // here we do know "out" and some irrelevant part of "A"
+                // that means there is many solutions even just for the first a.
+                // 
+                // 2,4,1,1,7,5,1,5,4,1,5,5,0,3,3,0
+                // out = 2 => a = 6 ^ (A >> (a ^ 1))
+                // for a = 0: 0 = 6 ^ (A >> 1) = 6 ^ 0bx00 = 0bx10 != 0
+                // for a = 1: 1 = 6 ^ (A >> 0) = 6 ^ 1 = 7 != 1
+                // for a = 2: 2 = 6 ^ (A >> 3) = 6 ^ x => x = 6
+                // for next octal number a:
+                // out = 4 => a = A >> (a ^ 1)
+                // for a = 6 (which remember is the only option in this branch)
+                // we get a = A >> 7
+                // things get complicated fast here!
+                // if I want to solve this efficiently, without brute forcing it,
+                // I will have to be smart about it.
+                // IDEA:
+                // programm a reverse computer, which finds all possible reverse paths.
+                // (essentially depth first search in the graph/tree of unticks)
+
+                const [regs, progs] = read_data();
+                let desired_output = progs.reduce((a, b) => a + "" + b);
+                console.log(desired_output);
+                for (let a = 0; a < 100000000; a++) {
+                    if (a % 1000000 == 0) // reasonable rate for console messages
+                        console.log(a);
+                    if (check_computer_output(progs, [a, regs[1], regs[2]], desired_output)) {
+                        document.getElementById("out2").innerHTML = a.toString();
+                    }
+                }
+            }
+            function do2() {
+                const [regs, progs] = read_data();
+
+                // try 8 different end values for C
+                // B can always be set to 0 as end value for the programm I got
+                let a = Infinity;
+                // -------------- simplified for testing: ------------
+                let out_list = progs.slice(0, 2);
+                let out_str = out_list.reduce((a, b) => a + "" + b);
+                for (let c = 0; c < 8; c++) {
+                    let computer = new Computer(progs, [0, 0, c], progs.length);
+                    let res_a = unclock(computer, out_list, out_str, 4);
+                    if (res_a != null) {
+                        console.log("found a solution:", res_a);
+                        a = Math.min(res_a, a);
+                    }
+                }
+                //let computer = new Computer(progs, [0, 0, 0], progs.length);
+                //let out = Array.from(progs);
+                //let a = computer.registers[0];
+                
+                document.getElementById("out2").innerHTML = a.toString();
+            }
+            function check_my_program(a) {
+                out = [];
+                while (a) {
+                    out.push((a & 7) ^ (a >> ((a & 7) ^ 1)) & 7 ^ 4)
+                    a >>= 3;
+                }
+                return out;
+            }
+            function check_my_program2(a, out) {
+                out = Array.from(out);
+                while (a) {
+                    let res = (a & BigInt(7)) ^ (a >> ((a & BigInt(7)) ^ BigInt(1))) & BigInt(7) ^ BigInt(4);
+                    if (out.shift() != res)
+                        return false;
+                    a >>= BigInt(3);
+                }
+                return out.length == 0;
+            }
+            function complete_a(a, i, progs) {
+                if (i < 0) {
+                    // check this here to ensure there is no further numbers spewed out.
+                    if (check_my_program2(a, progs))
+                        return a;
+                    else
+                        console.log("wrong?", a);
+                    return;
+                }
+                a <<= BigInt(3);
+                for (let a_part = BigInt(0); a_part < BigInt(8); a_part++) {
+                    let out = a_part ^ BigInt(4) ^ (((a | a_part) >> (a_part ^ BigInt(1))) & BigInt(7));
+                    if (out == progs[i]) {
+                        let res = complete_a(a | a_part, i - 1, progs);
+                        if (res !== undefined) {
+                            return res; // found a solution (not necessarily optimal)
+                        }
+                    }
+                }
+            }
+            function do2_noinput() {
+                const [regs, progs] = read_data();
+                // I have given up on solving it generically.
+                // the approach above doesn't work because there is too much uncertainty.
+                // I hoped that the many XORs would keep the branching low, but the shifts just dominated.
+                // anyway.
+                // we are solving the problem
+                // out ^ 4 = (A & 7) ^ (A >> ((A & 7) ^ 1))
+                // A >>= 3
+                // assuming the last (MSB) 9? bits of A are given, we get
+                // a simple formula to compute the rest.
+                // -> turns out that seed must be 0, because the loop ends at 0
+                // -> turns out I need BigInt, because Number somehow wrapped to negatives,
+                //    even though my understanding is, that Number should be double?
+                // Javascript is confusing...
+                // the solution turned out to be 164278764924605
+                // but my part 1 could not handle the large number to even check it.
+                // and that even though Number is able to handle that number!!!
+                // what?!?
+                // I'm done with this for now. Maybe I will turn back and try to
+                // improve it after looking at other peoples solutions.
+                // But in that case, I will keep my own journey here and add the improved version below.
+                for (let slice = 1; slice <= progs.length; slice++) {
+                    let desired_output = progs.slice(0, slice).reduce((a, b) => a + "" + b);
+                    let found_a = -1;
+                    for (let seed = 0; seed < (1 << 0); seed++) {
+                        let a = BigInt(seed);
+                        a = complete_a(a, slice - 1, progs.slice(0, slice));
+                        if (a !== undefined) {
+                            console.log(slice, a);
+                            found_a = a;
+                            break;
+                        }
+                    }
+                    document.getElementById("out3").innerHTML = found_a.toString();
+                }
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 17</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="do1()">
+            &#9656;
+        </button> Part 1</h3>
+        
+        <p id="out1">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2()">
+            &#9656;
+        </button> Part 2</h3>
+        <p id="out2">...Output here...</p>
+        <h3><button type="button" class="play" onclick="do2_noinput()">
+            &#9656;
+        </button> Part 2 (my input specifically)</h3>
+        <p id="out3">...Output here...</p>
+    </body>
+</html>
