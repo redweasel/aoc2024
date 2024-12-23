@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script src="../timer.js"></script>
+        <script>
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                const edges = fileinput.trim().split("\n");
+                // make a (slow) bidirectional graph using maps
+                const map = new Map();
+                for (const edge of edges) {
+                    const [a, b] = edge.split("-");
+                    const a_map = map.get(a) || new Set();
+                    a_map.add(b);
+                    map.set(a, a_map);
+                    const b_map = map.get(b) || new Set();
+                    b_map.add(a);
+                    map.set(b, b_map);
+                }
+                return map;
+            }
+            function do1() {
+                // Today on AoC:
+                // https://en.wikipedia.org/wiki/Clique_problem
+                // a problem I have never solved before.
+                // also a very sad problem... (NP hard)
+                // luckily we just do cliques of 3 with one partially known.
+                // since it's NP hard, any brute force algorithm will do for now.
+                // However for the specific case of triangles there is efficient/optimal algorithms.
+                let graph = read_data();
+                let triangle_count = 0;
+                let t_triangles = 0;
+                for (const [node, adj] of graph.entries()) {
+                    // check if two nodes in adj are connected -> they form a triangle!
+                    // only consider nodes in adj, which are later in lexicographic ordering to avoid overcounting.
+                    const adj_arr = Array.from(adj);
+                    adj_arr.sort();
+                    for (let i = 0; i < adj_arr.length; i++) {
+                        const node_i = adj_arr[i];
+                        if (node_i > node) {
+                            let set = graph.get(node_i);
+                            for (let j = i + 1; j < adj_arr.length; j++) {
+                                const node_j = adj_arr[j];
+                                if (set.has(node_j)) {
+                                    triangle_count++;
+                                    if (node.startsWith("t") || node_i.startsWith("t") || node_j.startsWith("t")) {
+                                        t_triangles++;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                document.getElementById("out1").innerHTML = `${t_triangles}/${triangle_count}`;
+            }
+
+            function do2() {
+                // yep, it's the hard problem... great!
+                // at least the input is reasonably small.
+                // Idea: expand every 3-clique from above into its maximal clique using a greedy algorithm.
+                // Note: it is always possible to find the maximal clique in lexicographic ordering.
+                // therefore I can also just use what I did above, just expanded and it should not be terrible.
+                // ...
+                // actually not hard at all?!?
+                let graph = read_data();
+                let maximal_clique = [];
+                for (const [node, adj] of graph.entries()) {
+                    // check if two nodes in adj are connected -> they form a triangle!
+                    // only consider nodes in adj, which are later in lexicographic ordering to avoid overcounting.
+                    const adj_arr = Array.from(adj);
+                    adj_arr.sort();
+                    let clique = [node];
+                    for (let i = 0; i < adj_arr.length; i++) {
+                        const node_i = adj_arr[i];
+                        if (node_i <= node) continue;
+                        let set = graph.get(node_i);
+                        let has_all = true;
+                        for (const n of clique) {
+                            if (!set.has(n)) {
+                                has_all = false;
+                                break;
+                            }
+                        }
+                        if (has_all) {
+                            clique.push(node_i);
+                        }
+                    }
+                    if (clique.length > maximal_clique.length) {
+                        maximal_clique = clique;
+                    }
+                }
+                document.getElementById("out2").innerHTML = maximal_clique.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 23</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="timed(do1,'time1')">
+            &#9656;
+        </button> Part 1 <input id="part1count" class="input_text" type="text" pattern="[0-9]" text="2" width="5pt"></h3>
+        
+        <p id="out1">...Output here...</p><p id="time1" class="time"></p>
+        <h3><button type="button" class="play" onclick="timed(do2,'time2')">
+            &#9656;
+        </button> Part 2 <input id="part2count" class="input_text" type="text" pattern="[0-9]" text="25" width="5pt"></h3>
+        <p id="out2">...Output here...</p><p id="time2" class="time"></p>
+    </body>
+</html>
