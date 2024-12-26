@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script src="../timer.js"></script>
+        <script>
+            // why is this not included in JS itself?
+            var assert=(c,m)=>{if(!c){throw new Error(m||"Assertion failed")}};
+
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                let keys = [];
+                let locks = [];
+                for (const obj of fileinput.trim().split("\n\n")) {
+                    const data = obj.split('\n');
+                    const obj_arr = [];
+                    for (let i = 0; i < data[0].length; i++) {
+                        let count = -1;
+                        for (const v of data) if (v[i] == "#") count++;
+                        obj_arr.push(count);
+                    }
+                    (data[0].split("").includes('.') ? keys : locks).push(obj_arr);
+                }
+                return [keys, locks];
+            }
+
+            function do1() {
+                const [keys, locks] = read_data();
+                let fitting_pairs = 0;
+                console.log(keys);
+                console.log(locks);
+                for (let i = 0; i < keys.length; i++) {
+                    for (let j = 0; j < locks.length; j++) {
+                        let k = keys[i];
+                        let l = locks[j];
+                        assert(k.length == l.length);
+                        let fits = true;
+                        for (let n = 0; fits && n < k.length; n++) if (k[n] + l[n] > 5) fits = false;
+                        fitting_pairs+=fits;
+                    }
+                }
+                document.getElementById("out1").innerHTML = fitting_pairs.toString();
+            }
+
+            function do2() {
+
+                document.getElementById("out2").innerHTML = arr.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 25</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="timed(do1,'time1')">
+            &#9656;
+        </button> Part 1 <input id="part1count" class="input_text" type="text" pattern="[0-9]" text="2" width="5pt"></h3>
+        
+        <p id="out1">...Output here...</p><p id="time1" class="time"></p>
+        <h3><button type="button" class="play" onclick="timed(do2,'time2')">
+            &#9656;
+        </button> Part 2 <input id="part2count" class="input_text" type="text" pattern="[0-9]" text="25" width="5pt"></h3>
+        <p id="out2">...Output here...</p><p id="time2" class="time"></p>
+    </body>
+</html>
