@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="../style.css">
+        <script src="../timer.js"></script>
+        <script>
+            // why is this not included in JS itself?
+            var assert=(c,m)=>{if(!c){throw new Error(m||"Assertion failed")}};
+
+            // https://stackoverflow.com/a/43122214
+            function bitCount(n) {
+                return n == 0 ? 0 : n.toString(2).match(/1/g).length
+            }
+
+            function read_data() {
+                const fileinput = document.getElementById("in1").value;
+                const [inputs_str, circuit_str] = fileinput.trim().split("\n\n");
+                const inputs = new Map(inputs_str.split("\n").map(s => s.split(": ")));
+                let outputs = new Set();
+                const gates = new Map(circuit_str.split("\n").map(s => {
+                    const parts = s.split(" ");
+                    const op = parts[1].replace("AND", "&").replace("XOR", "^").replace("OR", "|");
+                    assert(op.length == 1 && "&|^".includes(op), parts[1]);
+                    if (parts[4][0] == "z") {
+                        outputs.add(parts[4]);
+                    }
+                    // gate, in_a, in_b, out
+                    return [parts[4], [op, parts[0], parts[2]]];
+                }));
+                outputs = Array.from(outputs);
+                outputs.sort();
+                return [inputs, outputs, gates];
+            }
+            function eval_gates(state, gates, outputs) {
+                // dumbest solution considering the graph is a DAG
+                used_state = new Set();
+                used_gates = new Set();
+                function eval_gate(gate) {
+                    if (state.has(gate)) {
+                        used_state.add(gate);
+                        return state.get(gate);
+                    }
+                    if (used_gates.has(gate)) {
+                        // loop detected!
+                        return undefined;
+                    }
+                    used_gates.add(gate);
+                    const gate_data = gates.get(gate);
+                    if (gate_data === undefined) {
+                        console.log("requested unknown gate/state");
+                        return undefined;
+                    }
+                    const a = eval_gate(gate_data[1]);
+                    const b = eval_gate(gate_data[2]);
+                    if (a === undefined || b === undefined) {
+                        return;
+                    }
+                    const out = eval("a" + gate_data[0] + "b");
+                    state.set(gate, out);
+                    return out;
+                }
+                for (const out of outputs) {
+                    eval_gate(out);
+                }
+                return used_state;
+            }
+
+            function do1() {
+                const [state, outputs, gates] = read_data();
+                console.log(state, outputs, gates);
+                eval_gates(state, gates, outputs);
+                outputs.reverse();
+                let outstr = "0b";
+                for (const out of outputs) {
+                    outstr += state.get(out);
+                }
+                document.getElementById("out1").innerHTML = BigInt(outstr).toString();
+            }
+
+            function eval_as_addition(x, y, gates, bits) {
+                let state = new Map();
+                let outputs = [];
+                x = BigInt(x);
+                y = BigInt(y);
+                for (let i = 0; i < bits; i++) {
+                    let x_value = ((x >> BigInt(i)) & BigInt(1)).toString();
+                    let y_value = ((y >> BigInt(i)) & BigInt(1)).toString();
+                    state.set("x" + ("0" + i).slice(-2), x_value);
+                    state.set("y" + ("0" + i).slice(-2), y_value);
+                    outputs.push("z" + ("0" + i).slice(-2));
+                }
+                eval_gates(state, gates, outputs);
+                outputs.reverse();
+                let outstr = "0b";
+                for (const out of outputs) {
+                    outstr += state.get(out);
+                }
+                if (outstr.match("0b[0-9]+$")) {
+                    return BigInt(outstr);
+                }
+                return null;
+            }
+
+            var bits;
+            function test(g, n) {
+                let err = 0;
+                for (let [x, y] of [[69370303791677, 37201341624984], [74365996042312, 33051920354339], [3312523211792, 133908615858949], [119444439594464, 6740983283092], [83129712563017, 56055900448471], [68947635774981, 112200270887084], [96776420149902, 23387789639459], [77815044645276, 95828290832596], [21063221067643, 105763799682804], [9504706056385, 11007103088935]]) {
+                    x %= Math.pow(2, n);
+                    y %= Math.pow(2, n);
+                    let z = (x + y) % Math.pow(2, n);
+                    let eval_z = eval_as_addition(x, y, g, bits);
+                    if (eval_z != null) {
+                        eval_z %= (BigInt(1) << BigInt(n));
+                        err += bitCount(eval_z ^ BigInt(z));
+                    }
+                    else {
+                        err += n;
+                    }
+                }
+                return err;
+            }
+
+            function swap(g, a, b) {
+                let a_value = g.get(a);
+                let b_value = g.get(b);
+                g.set(a, b_value);
+                g.set(b, a_value);
+            }
+
+            function test_swaps(g, swaps, n) {
+                // swap gates
+                let modified_gates = new Map(g);
+                for (const [a, b] of swaps) {
+                    swap(modified_gates, a, b);
+                }
+                // eval test
+                return test(modified_gates, n);
+            }
+            var _gates;
+
+            function do2() {
+                // seems pretty hard
+                // can I brute force it?
+                // 8 gates out of 222 -> ~222^8 combinations (way too much!)
+                // addition huh?
+                // thats an interesting circuit, because it is recursive,
+                // meaning if only the first 3 bits are used, then it's still addition,
+                // just with a subset of the gates. -> scan like this!
+                
+                // this seesm to be [wpq,grf]
+                // wpq,grf,fvw,z18,z22,mdb,z36,nwq
+
+                let [state, outputs, gates] = read_data();
+                _gates = new Map(gates.entries());
+                bits = outputs.length;
+                const orig_gates = new Map(gates.entries());
+                let strong_suspect_pairs = new Map();
+                {
+                    // fix as we go and keep the test error at 0
+                    let fixes = [];
+                    for (let out_i = 0; out_i < outputs.length - 1; out_i++) {
+                        const out = outputs[out_i + 1];
+                        let err = test(gates, out_i+1);
+                        console.log(out_i, err, fixes.toString());
+                        let state1 = new Map(state.entries());
+                        let last_state = new Set(state.keys());
+                        for (let j = 0; j <= out_i; j++) {
+                            let used = eval_gates(state1, gates, outputs.slice(0, j + 1));
+                            last_state = new Set(state.keys());
+                        }
+                        let used = eval_gates(state1, gates, [out]);
+                        let new_state = new Set(state1.keys());
+                        // not available in Firefox ESR yet:
+                        //let new_state = s.difference(last_state);
+                        for (const l of last_state) {
+                            new_state.delete(l);
+                        }
+
+                        if (err == 0) {
+                            out_i++;
+                            continue;
+                        }
+
+                        console.log(out_i, used, new_state);
+                        let suspects = new Set();
+                        for (const n of used) {
+                            suspects.add(n);
+                        }
+                        for (const n of new_state) {
+                            suspects.add(n);
+                        }
+                        // remove all suspects, which are pure inputs
+                        suspects = Array.from(suspects).filter(
+                            n => !n.match(/[xy][0-9]+/)
+                        );
+                        // find a fix and apply it (hope that there is not more than one fixes...)
+                        let best_fix;
+                        let best_fix_err;
+                        let gates_str = gates.toString();
+                        for (let i = 0; i < suspects.length; i++) {
+                            for (let j = i + 1; j < suspects.length; j++) {
+                                let a = suspects[i];
+                                let b = suspects[j];
+                                let err = test_swaps(gates, [[a, b]], out_i+1);
+                                if (err == 0) {
+                                    err = test_swaps(gates, [[a, b]], bits);
+                                    if (best_fix_err == undefined || best_fix_err > err) {
+                                        best_fix_err = err;
+                                        best_fix = a + "," + b;
+                                        assert(test_swaps(gates, [best_fix.split(",")], out_i+1) == 0);
+                                    }
+                                    //strong_suspect_pairs.set(best_fix, err);
+                                }
+                            }
+                        }
+                        if (best_fix === undefined) {
+                            console.log("extra search...");
+                            let gates_arr = Array.from(gates.entries());
+                            let base_line = test(gates, bits);
+                            for (let i = 0; i < suspects.length; i++) {
+                                for (let j = 0; j < gates_arr.length; j++) {
+                                    let a = suspects[i];
+                                    let b = gates_arr[j][0];
+                                    if (a == b)
+                                        continue;
+                                    let err = test_swaps(gates, [[a, b]], out_i+1);
+                                    if (err == 0) {
+                                        err = test_swaps(gates, [[a, b]], bits);
+                                        if (err < base_line && (best_fix_err == undefined || best_fix_err > err)) {
+                                            best_fix_err = err;
+                                            best_fix = a + "," + b;
+                                            assert(test_swaps(gates, [best_fix.split(",")], out_i+1) == 0);
+                                        }
+                                        //strong_suspect_pairs.set(best_fix, err);
+                                    }
+                                }
+                            }
+                        }
+                        assert(gates_str == gates.toString(), "gates changed");
+                        // apply fix
+                        if (best_fix !== undefined) {
+                            let [a, b] = best_fix.split(",");
+                            assert(test_swaps(gates, [[a, b]], out_i+1) == 0, "wtf");
+                            swap(gates, a, b);
+                            fixes.push([a, b]);
+                            strong_suspect_pairs.set(best_fix, best_fix_err);
+                        }
+                        else {
+                            console.log("no fix found yet");
+                        }
+                        console.log("test:", test(gates, out_i+1));
+                    }
+                    console.log("test:", test(gates, bits));
+                    gates = orig_gates;
+                }
+                let arr = fixes.toString().split(",");
+                arr.sort();
+                document.getElementById("out2").innerHTML = arr.toString();
+            }
+        </script>
+    </head>
+    <body>
+        <h2><a class="back" href="../index.html">&#x2B9C;</a>Day 24</h2>
+        <textarea rows="8" id="in1" name="in1"></textarea></br>
+        </br>
+        <h3><button type="button" class="play" onclick="timed(do1,'time1')">
+            &#9656;
+        </button> Part 1 <input id="part1count" class="input_text" type="text" pattern="[0-9]" text="2" width="5pt"></h3>
+        
+        <p id="out1">...Output here...</p><p id="time1" class="time"></p>
+        <h3><button type="button" class="play" onclick="timed(do2,'time2')">
+            &#9656;
+        </button> Part 2 <input id="part2count" class="input_text" type="text" pattern="[0-9]" text="25" width="5pt"></h3>
+        <p id="out2">...Output here...</p><p id="time2" class="time"></p>
+    </body>
+</html>
